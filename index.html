@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#080b10">
+  <meta name="description" content="地下城：迷踪——一款主打随机事件与迷宫探索的轻量 Roguelike 网页游戏。">
+  <title>地下城：迷踪</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="game-shell" id="gameShell">
+    <header class="hud" aria-label="当前状态">
+      <div class="hud-stat hud-floor">
+        <span class="hud-label">出口</span>
+        <strong id="floorValue">0/3</strong>
+      </div>
+      <div class="health-wrap">
+        <div class="health-copy">
+          <span>生命</span>
+          <strong id="healthText">100 / 100</strong>
+        </div>
+        <div class="health-track" role="progressbar" aria-label="生命值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+          <div class="health-fill" id="healthFill"></div>
+        </div>
+      </div>
+      <div class="hud-stat hud-steps">
+        <span class="hud-label">步数</span>
+        <strong id="stepsValue">0</strong>
+      </div>
+    </header>
+
+    <section class="stage" id="stage" aria-label="地下城迷宫">
+      <canvas id="gameCanvas"></canvas>
+
+      <aside class="item-rail" aria-label="当前道具">
+        <button class="item-slot" data-item="potion" aria-label="使用恢复药剂">
+          <span class="atlas-sprite" data-sprite="item-potion" aria-hidden="true"></span>
+          <span class="item-count" id="countPotion">0</span>
+        </button>
+        <button class="item-slot" data-item="vision" aria-label="使用视野拓宽">
+          <span class="atlas-sprite" data-sprite="item-vision" aria-hidden="true"></span>
+          <span class="item-count" id="countVision">0</span>
+          <span class="item-timer" id="timerVision" hidden></span>
+        </button>
+        <button class="item-slot" data-item="execute" aria-label="一击必杀，仅在遇敌时使用">
+          <span class="atlas-sprite" data-sprite="item-execute" aria-hidden="true"></span>
+          <span class="item-count" id="countExecute">0</span>
+        </button>
+        <button class="item-slot" data-item="teleport" aria-label="使用瞬移卷轴">
+          <span class="atlas-sprite" data-sprite="item-teleport" aria-hidden="true"></span>
+          <span class="item-count" id="countTeleport">0</span>
+        </button>
+      </aside>
+
+      <button class="minimap-card" id="minimapButton" aria-label="放大迷宫缩略图">
+        <canvas id="minimapCanvas"></canvas>
+        <span class="minimap-label">已探索路线</span>
+      </button>
+
+      <div class="status-chip" id="statusChip" aria-live="polite"></div>
+      <div class="stage-hint" aria-hidden="true">点击已探索区域自动寻路 · 滑动探索未知区域</div>
+
+      <section class="encounter-card" id="encounterCard" hidden aria-live="assertive">
+        <div class="encounter-heading">
+          <span class="atlas-sprite encounter-sprite" id="encounterIcon" data-sprite="enemy-skeleton" aria-hidden="true"></span>
+          <div>
+            <span class="encounter-kicker" id="encounterKicker">遭遇</span>
+            <h2 id="encounterTitle">骷髅守卫</h2>
+          </div>
+          <button class="icon-button" id="encounterClose" aria-label="暂时离开">×</button>
+        </div>
+        <p id="encounterDescription"></p>
+        <div class="encounter-outcome" id="encounterOutcome"></div>
+        <div class="encounter-actions" id="encounterActions"></div>
+      </section>
+    </section>
+
+    <section class="event-panel" aria-label="事件记录">
+      <div class="event-panel-head">
+        <div class="drag-handle" aria-hidden="true"></div>
+        <span>事件时间流</span>
+        <button class="text-button" id="restartButton">重新开始</button>
+      </div>
+      <div class="event-log" id="eventLog" tabindex="0" aria-live="polite"></div>
+      <button class="new-event-badge" id="newEventBadge" hidden></button>
+    </section>
+
+  </main>
+
+  <section class="overlay start-overlay" id="startOverlay">
+    <div class="start-backdrop"></div>
+    <div class="start-card">
+      <span class="atlas-sprite start-mark" data-sprite="player" aria-hidden="true"></span>
+      <p class="eyebrow">随机事件 · 迷宫探索</p>
+      <h1>地下城：迷踪</h1>
+      <p class="start-copy">从迷宫中心出发，在有限视野中寻找出口。每一步都可能遇到宝箱、陷阱、祭坛或潜伏的敌人。</p>
+      <div class="record-card">
+        <span>个人最远纪录</span>
+        <strong id="bestRecord">尚无纪录</strong>
+      </div>
+      <button class="primary-button" id="continueButton" hidden>继续探索</button>
+      <button class="secondary-button" id="newGameButton">开始新游戏</button>
+      <p class="start-note">进度仅保存在当前浏览器</p>
+    </div>
+  </section>
+
+  <section class="story-overlay" id="storyOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="storyKicker" aria-describedby="storyText">
+    <div class="story-vignette" aria-hidden="true"></div>
+    <div class="story-card">
+      <p class="story-kicker" id="storyKicker">记忆碎片</p>
+      <p class="story-text" id="storyText"></p>
+      <button class="story-continue" id="storyContinueButton" type="button">继续</button>
+    </div>
+  </section>
+
+  <section class="overlay map-overlay" id="mapOverlay" hidden>
+    <div class="overlay-card map-card">
+      <div class="overlay-title-row">
+        <div>
+          <span class="eyebrow">探索记录</span>
+          <h2>迷宫全貌</h2>
+        </div>
+        <button class="icon-button" id="mapClose" aria-label="关闭地图">×</button>
+      </div>
+      <canvas id="fullMapCanvas"></canvas>
+      <p class="map-tip">金色线条为本局路线；点击已探索格可自动寻路。</p>
+    </div>
+  </section>
+
+  <section class="overlay end-overlay" id="endOverlay" hidden>
+    <div class="overlay-card end-card">
+      <p class="eyebrow">本次探索结束</p>
+      <h2 id="endTitle">你倒在了迷宫深处</h2>
+      <p class="end-reveal" id="endReveal"></p>
+      <canvas id="endMapCanvas"></canvas>
+      <div class="end-stats" id="endStats"></div>
+      <button class="primary-button" id="endRestartButton">再次探索</button>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="./game.js"></script>
+</body>
+</html>

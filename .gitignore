@@ -1,0 +1,20 @@
+# Local build outputs
+/dist/
+/build/
+*.zip
+
+# Dependencies and test output
+node_modules/
+coverage/
+*.log
+__pycache__/
+*.py[cod]
+
+# Local credentials and editor/system files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
