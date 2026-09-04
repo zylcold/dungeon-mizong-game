@@ -2,7 +2,7 @@
 
 一款移动端优先、主打随机事件与迷宫探索的轻量 Roguelike 网页游戏。
 
-当前版本：**1.10.1**。源码仓库包含完整游戏、PNG 素材、回归测试和小红书小工具打包技能。
+当前版本：**1.11.0**。源码仓库包含模块化游戏、PNG 素材、回归测试和小红书小工具打包技能。
 
 维护入口：[AGENTS.md](AGENTS.md) · [版本记录](CHANGELOG.md) · [素材说明](assets/README.md)。
 
@@ -42,17 +42,33 @@
 
 ## 运行
 
-项目没有第三方依赖。推荐通过本地 HTTP 服务运行：
+运行时没有第三方依赖；开发构建需要 Node.js 22+，使用锁定版本的 esbuild、Acorn 和 fflate：
 
 ```bash
 git clone https://github.com/zylcold/dungeon-mizong-game.git
 cd dungeon-mizong-game
-python3 -m http.server 8080
+npm ci
+npm run dev
 ```
 
-然后访问 `http://localhost:8080`。
+然后访问 `http://127.0.0.1:8080`，修改源码后刷新页面即可重新构建。
 
-也可以直接打开 `index.html`，核心功能无需联网。
+`npm run build` 输出 `dist/`。源码使用 ES Modules，发布时合并为经典 IIFE 脚本，目标为 ES2017 / Chrome 61；不要直接打开源码入口。
+
+## 源码结构
+
+| 目录 | 职责 |
+| --- | --- |
+| `public/index.html`、`src/styles.css` | 页面结构、手机安全区和样式 |
+| `src/main.js`、`src/game.js` | 启动、生命周期和系统组合 |
+| `src/core/` | 纯地图、寻路、随机数和战斗计算 |
+| `src/data/` | 事件、道具、剧情、结局和图集数据 |
+| `src/state/` | 初始状态、存档迁移和存储适配 |
+| `src/systems/` | 移动、视野、事件、背包、战斗和剧情流程 |
+| `src/rendering/`、`src/ui/` | Canvas 地图、缩略图、输入和界面 |
+| `scripts/`、`tests/` | 构建、产物校验、打包和回归测试 |
+
+规则计算不依赖 DOM；各系统显式协作，不通过动态拼接源码或修改原型装配。
 
 ## 轻应用 ZIP
 
@@ -64,19 +80,23 @@ python3 -m http.server 8080
 
 来源：[小红书小工具技能包 1.6.0](https://fe-static.xhscdn.com/mini-tool/20260831163932/minitool-zip-builder-1.6.0.skill)。开发或改动小工具前，请先阅读 `SKILL.md` 及对应参考文档；运行审计脚本不能替代代码合规检查与真机验收。
 
-在仓库根目录执行以下命令打包（需要 Python 3 和 `zip`；测试还需要 Node.js）：
+在仓库根目录执行：
 
 ```bash
-npm test
-mkdir -p dist/assets
-cp index.html styles.css game.js dist/
-cp assets/sprites-atlas.png dist/assets/
-python3 .codex/skills/minitool-zip-builder/scripts/audit_artifact.py dist
-(cd dist && zip -9 ../dungeon-mizong-minitool-1.10.1.zip index.html styles.css game.js assets/sprites-atlas.png)
-python3 .codex/skills/minitool-zip-builder/scripts/audit_artifact.py dungeon-mizong-minitool-1.10.1.zip
+npm ci
+npm run package
+npm run check
 ```
 
-请使用空的 `dist/` 和尚不存在的 ZIP 文件名进行首次打包；重新打包时先移走旧产物，避免 ZIP 保留旧文件。仅将这份运行 ZIP 上传到小红书容器；GitHub 的 **Download ZIP 是源码包**，包含测试和技能，不能直接作为小工具上传包。构建输出不提交到源码仓库。
+产物为 `release/dungeon-mizong-minitool-1.11.0.zip` 和对应 `.zip.sha256`。打包前运行完整测试、ES2017 语法检查、资源与禁用能力检查；打包后校验 ZIP 白名单、体积和解压文件字节，并运行技能原始审计。ZIP 条目时间固定，相同输入可重复构建。`dist/` 中存在非白名单文件会报错，请移走旧文件后重试。
+
+仅将这份运行 ZIP 上传到小红书容器；GitHub 的 **Download ZIP 是源码包**，不能直接作为小工具上传包。构建输出不提交到源码仓库。
+
+### GitHub Actions 发布
+
+[发布工作流](.github/workflows/release.yml) 在 main 推送、PR 和手动运行时执行安装、构建、测试、审计与打包，成功后保存 `xiaohongshu-package` Artifact（30 天）。下载 Artifact 后解压，里面的 `dungeon-mizong-minitool-*.zip` 才是运行包。
+
+发布 GitHub Release 时，选择包含本工作流的提交，使用与 `package.json` 一致的标签（本版 `v1.11.0`），点击 Publish release。工作流重新验证后将运行 ZIP 和 SHA-256 文件直接附到 Release；版本不匹配会失败。仅附件上传任务有 `contents: write` 权限，各 Action 固定到提交 SHA。上传不覆盖已有附件，重跑前应核实是否已成功上传。
 
 ## 操作
 
@@ -89,7 +109,7 @@ python3 .codex/skills/minitool-zip-builder/scripts/audit_artifact.py dungeon-miz
 
 当前游戏和最近个人纪录保存在浏览器 `localStorage` 中，不上传服务器。
 
-1.10.1 与 1.7.0–1.10.0 的进行中存档兼容。载入旧局时会迁移剧情触发标记，并补齐 30 步冷却、待播队列和当前未读剧情字段；个人历史纪录继续保留。旧版本已经丢失的未读演出无法追溯恢复。
+1.11.0 保留 1.10.1 的存档格式，与 1.7.0–1.10.1 的进行中存档兼容。载入旧局时会迁移剧情触发标记，并补齐 30 步冷却、待播队列和当前未读剧情字段；个人历史纪录继续保留。旧版本已经丢失的未读演出无法追溯恢复。
 
 ## 图集
 

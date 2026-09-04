@@ -199,11 +199,11 @@ global.Image = class {
   }
 };
 
-require(path.join(__dirname, "..", "game.js"));
+require("node:vm").runInThisContext(fs.readFileSync(path.join(__dirname, "..", "dist", "game.js"), "utf8"), { filename: "dist/game.js" });
 
 const game = global.__dungeonGame;
 assert.ok(game, "游戏实例应成功创建");
-assert.equal(game.assets.get().naturalWidth, 1400, "运行时应加载单张 PNG 图集");
+assert.equal(game.renderer.assets.get().naturalWidth, 1400, "运行时应加载单张 PNG 图集");
 game.startNewGame();
 
 assert.equal(elements.storyOverlay.hidden, false, "新游戏应先播放开场故事");
@@ -227,7 +227,7 @@ assert.equal(game.state.logs.length, 5, "开局事件时间流默认应填充五
 assert.ok(game.state.maze.exits.length >= 1 && game.state.maze.exits.length <= 3);
 assert.equal(game.state.player.x, MAZE_CENTER);
 assert.equal(game.state.player.y, MAZE_CENTER);
-assert.equal(game.getVisionRadius(), 2);
+assert.equal(game.vision.getVisionRadius(), 2);
 assert.equal("wallPreviewRooms" in game, false, "墙体不应再依赖随移动更新的预绘集合");
 const initialEnemies = Object.values(game.state.maze.entities).filter((entity) => entity.kind === "enemy");
 assert.ok(initialEnemies.length >= Math.floor(MAZE_SIZE * MAZE_SIZE * 0.045), "怪物密度不应低于 4.5%");
@@ -249,12 +249,12 @@ assert.equal(Object.keys(atlasManifest.frames).length, 20);
 assert.equal(new Set(Object.values(atlasManifest.frames).map((frame) => frame.join(","))).size, 20);
 assert.equal(fs.readdirSync(assetDirectory).some((name) => name.endsWith(".svg")), false, "素材目录不应包含 SVG");
 for (const sourceName of ["index.html", "styles.css", "game.js"]) {
-  const source = fs.readFileSync(path.join(__dirname, "..", sourceName), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "dist", sourceName), "utf8");
   assert.equal(source.includes(".svg"), false, `${sourceName} 不应引用 SVG`);
 }
-const indexSource = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-const gameSource = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-const styleSource = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
+const indexSource = fs.readFileSync(path.join(__dirname, "..", "dist", "index.html"), "utf8");
+const gameSource = fs.readFileSync(path.join(__dirname, "..", "dist", "game.js"), "utf8");
+const styleSource = fs.readFileSync(path.join(__dirname, "..", "dist", "styles.css"), "utf8");
 assert.equal(indexSource.includes("manifest.webmanifest"), false, "小程序包不应依赖 Web App Manifest");
 assert.equal(indexSource.includes("control-dock"), false, "底部方向操作区应完全移除");
 assert.equal(indexSource.includes("点击已探索区域自动寻路"), true, "主画面应提示点击自动寻路");
@@ -285,14 +285,14 @@ function key(x, y) {
 }
 
 function captureWallFrame() {
-  const view = game.getMainViewMetrics(390, 500);
-  const bounds = game.getViewportRoomBounds(390, 500, view.tileSize, view.camera);
+  const view = game.renderer.getMainViewMetrics(390, 500);
+  const bounds = game.renderer.getViewportRoomBounds(390, 500, view.tileSize, view.camera);
   const segmentKey = (segment) => {
     const start = `${segment.x1},${segment.y1}`;
     const end = `${segment.x2},${segment.y2}`;
     return start < end ? `${start}|${end}` : `${end}|${start}`;
   };
-  const segments = game.collectMazeWallSegments(bounds);
+  const segments = game.renderer.collectMazeWallSegments(bounds);
   return { bounds, segments, keys: new Set(segments.map(segmentKey)) };
 }
 
@@ -352,27 +352,27 @@ function resolvePending() {
     if (game.pending.type === "enemy") {
       game.state.hp = Math.max(game.state.hp, game.pending.enemy.hp + 100);
       game.state.maxHp = Math.max(game.state.maxHp, game.state.hp);
-      game.fightEnemy(false);
+      game.combat.fightEnemy(false);
       dismissAllStories();
       continue;
     }
     const pendingKey = game.pending.key;
     const entity = game.state.maze.entities[pendingKey];
     if (!entity) {
-      game.dismissEncounter();
+      game.events.dismissEncounter();
       continue;
     }
     switch (entity.type) {
-      case "chest": game.openChest(pendingKey); break;
-      case "fountain": game.useFountain(pendingKey); break;
+      case "chest": game.events.openChest(pendingKey); break;
+      case "fountain": game.events.useFountain(pendingKey); break;
       case "shrine":
         if (game.state.hp <= 12) game.state.hp = 100;
-        game.useShrine(pendingKey);
+        game.events.useShrine(pendingKey);
         break;
-      case "corpse": game.searchCorpse(pendingKey); break;
-      case "portal": game.usePortal(pendingKey); break;
-      case "door": game.openStoneDoor(pendingKey); break;
-      default: game.leaveEvent(pendingKey);
+      case "corpse": game.events.searchCorpse(pendingKey); break;
+      case "portal": game.events.usePortal(pendingKey); break;
+      case "door": game.events.openStoneDoor(pendingKey); break;
+      default: game.events.leaveEvent(pendingKey);
     }
     dismissAllStories();
   }
@@ -384,7 +384,7 @@ function walkTo(target, maxMoves = 800) {
   while ((game.state.player.x !== target.x || game.state.player.y !== target.y) && moves++ < maxMoves) {
     const route = findPath(game.state, target);
     assert.ok(route.length >= 2, `目标 ${key(target.x, target.y)} 应可达`);
-    game.attemptMove(directionBetween(route[0], route[1]));
+    game.movement.attemptMove(directionBetween(route[0], route[1]));
     dismissAllStories();
     resolvePending();
   }
@@ -394,15 +394,15 @@ function walkTo(target, maxMoves = 800) {
 // 21 类内容均随机选择一条故事线，每次只演出一段，并在本局内去重。
 for (const loreKey of loreKeys) {
   game.state.lastStoryStep = game.state.totalSteps - 30;
-  assert.equal(game.queueFirstLore(loreKey), true, `${loreKey} 应能触发首次故事`);
+  assert.equal(game.story.queueFirstLore(loreKey), true, `${loreKey} 应能触发首次故事`);
   assert.equal(elements.storyOverlay.hidden, true, "剧情应先进入调度队列，而不是在触发函数内立即弹出");
-  assert.equal(game.tryShowPendingStory(), true, "满足 30 步间隔后应播放一条待处理剧情");
+  assert.equal(game.story.tryShowPendingStory(), true, "满足 30 步间隔后应播放一条待处理剧情");
   assert.ok(elements.storyKicker.textContent.includes("残缺片段"));
   assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
   assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
   assert.ok(elements.storyText.textContent.length > 45, `${loreKey} 的随机文本应足够完整`);
   dismissAllStories();
-  assert.equal(game.queueFirstLore(loreKey), false, `${loreKey} 不应重复播放`);
+  assert.equal(game.story.queueFirstLore(loreKey), false, `${loreKey} 不应重复播放`);
 }
 assert.equal(game.state.loreSeen.length, 21);
 game.state.loreSeen = [];
@@ -410,28 +410,28 @@ game.state.pendingStories = [];
 game.save();
 
 // 墙体按可行走区域统一描边：无重复线段、无单侧叠亮，并删除四通路口孤立墙柱。
-const initialView = game.getMainViewMetrics(390, 500);
-const initialBounds = game.getViewportRoomBounds(390, 500, initialView.tileSize, initialView.camera);
+const initialView = game.renderer.getMainViewMetrics(390, 500);
+const initialBounds = game.renderer.getViewportRoomBounds(390, 500, initialView.tileSize, initialView.camera);
 const wallsBeforeMove = captureWallFrame();
 assert.ok(wallsBeforeMove.segments.length > 0, "镜头缓冲区内应预先生成完整墙体边界");
 assert.equal(wallsBeforeMove.keys.size, wallsBeforeMove.segments.length, "同一物理墙段只应绘制一次");
 const wallStrokePasses = [];
 const wallProbe = canvasContext();
 wallProbe.stroke = () => wallStrokePasses.push({ style: wallProbe.strokeStyle, width: wallProbe.lineWidth });
-game.drawMazeWalls(wallProbe, initialBounds, initialView.tileSize);
+game.renderer.drawMazeWalls(wallProbe, initialBounds, initialView.tileSize);
 assert.deepEqual(wallStrokePasses.map((pass) => pass.style), ["#5b2228", "#bd555c"], "全部墙段应共享同一暗红底色和亮色描边");
 assert.equal(wallStrokePasses.length, 2, "墙体只应进行两次统一描边，不按房间重复叠加");
 let removablePillar = null;
 for (let y = 1; y < MAZE_SIZE && !removablePillar; y += 1) {
   for (let x = 1; x < MAZE_SIZE; x += 1) {
-    if (game.isRemovableWallPillar(x * 4, y * 4)) {
+    if (game.renderer.isRemovableWallPillar(x * 4, y * 4)) {
       removablePillar = { x: x * 4, y: y * 4 };
       break;
     }
   }
 }
 assert.ok(removablePillar, "大型迷宫应包含可用于验证的四通路口");
-assert.equal(game.isMazeFloorCell(removablePillar.x, removablePillar.y), true, "孤立墙柱应并入地面而不是继续显示");
+assert.equal(game.renderer.isMazeFloorCell(removablePillar.x, removablePillar.y), true, "孤立墙柱应并入地面而不是继续显示");
 const fogCellAlphas = [];
 const fogProbe = {
   globalAlpha: 1,
@@ -440,37 +440,37 @@ const fogProbe = {
   restore() {},
   fillRect() { fogCellAlphas.push(this.globalAlpha); }
 };
-game.drawWorldFogCells(fogProbe, initialBounds, initialView.tileSize, false, new Set(game.state.explored));
+game.renderer.drawWorldFogCells(fogProbe, initialBounds, initialView.tileSize, false, new Set(game.state.explored));
 assert.ok(fogCellAlphas.length > 0, "未探索墙体上方应覆盖独立迷雾层");
 assert.ok(fogCellAlphas.every((alpha) => alpha >= 0.5 && alpha <= 0.94), "迷雾应遮挡墙体但保留少量轮廓");
 
 const firstMove = neighbors(game.state, game.state.player)[0];
 delete game.state.maze.entities[key(game.state.player.x + firstMove.dx, game.state.player.y + firstMove.dy)];
-game.attemptMove(firstMove.name);
+game.movement.attemptMove(firstMove.name);
 const wallsAfterMove = captureWallFrame();
 const sharedWalls = [...wallsBeforeMove.keys].filter((segment) => wallsAfterMove.keys.has(segment));
 assert.ok(sharedWalls.length > 0, "相邻两帧应存在共同墙体");
 assert.ok(sharedWalls.every((segment) => wallsBeforeMove.keys.has(segment) && wallsAfterMove.keys.has(segment)), "移动前后同一物理墙段应保持不变");
 
 // 点击寻路只允许已探索格，并沿已探索连通区域逐格移动。
-assert.equal(game.startAutoPath({ x: 0, y: 0 }), false, "未知格不能成为自动寻路目标");
+assert.equal(game.movement.startAutoPath({ x: 0, y: 0 }), false, "未知格不能成为自动寻路目标");
 const exploredTarget = { x: MAZE_CENTER, y: MAZE_CENTER };
-assert.equal(game.startAutoPath(exploredTarget), true);
+assert.equal(game.movement.startAutoPath(exploredTarget), true);
 let autoSafety = 0;
-while (game.autoPath.length && autoSafety++ < 30) game.runAutoPathStep();
+while (game.movement.autoPath.length && autoSafety++ < 30) game.movement.runAutoPathStep();
 assert.ok(autoSafety < 30, "自动寻路不应陷入循环");
 assert.deepEqual(game.state.player, exploredTarget, "自动寻路应抵达所点选的已探索格");
-game.openMap(false);
-assert.ok(game.fullMapTransform && game.fullMapTransform.scale > 0, "放大地图应保留点击坐标转换信息");
+game.maps.openMap(false);
+assert.ok(game.maps.fullMapTransform && game.maps.fullMapTransform.scale > 0, "放大地图应保留点击坐标转换信息");
 elements.fullMapCanvas.listeners.click[0]({
-  clientX: game.fullMapTransform.offsetX + game.state.player.x * game.fullMapTransform.scale,
-  clientY: game.fullMapTransform.offsetY + game.state.player.y * game.fullMapTransform.scale
+  clientX: game.maps.fullMapTransform.offsetX + game.state.player.x * game.maps.fullMapTransform.scale,
+  clientY: game.maps.fullMapTransform.offsetY + game.state.player.y * game.maps.fullMapTransform.scale
 });
 assert.equal(elements.mapOverlay.hidden, true, "点击放大地图中的已探索格后应返回主画面");
 const minimapStrokeStyles = [];
 const minimapProbe = canvasContext();
 minimapProbe.stroke = () => minimapStrokeStyles.push(minimapProbe.strokeStyle);
-game.drawMap(minimapProbe, 106, 106, false, true);
+game.maps.drawMap(minimapProbe, 106, 106, false, true);
 assert.ok(minimapStrokeStyles.includes("#3a505d"), "缩略图探索网络应以灰蓝色为主");
 assert.equal(minimapStrokeStyles.includes("rgba(190, 73, 79, 0.98)"), false, "缩略图不应再使用高饱和红色网格");
 
@@ -478,7 +478,7 @@ assert.equal(minimapStrokeStyles.includes("rgba(190, 73, 79, 0.98)"), false, "�
 for (const hp of [74, 49, 24]) {
   game.state.hp = hp;
   game.state.lastStoryStep = game.state.totalSteps - 30;
-  game.updateUI();
+  game.ui.updateUI();
   assert.equal(elements.storyOverlay.hidden, false);
   assert.ok(elements.storyKicker.textContent.includes("记忆残片"));
   assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
@@ -487,12 +487,12 @@ for (const hp of [74, 49, 24]) {
   dismissAllStories();
 }
 game.state.hp = 100;
-game.updateUI();
+game.ui.updateUI();
 for (const exitDirection of [
-  game.getExitHintDirection({ x: MAZE_CENTER, y: 0 }),
-  game.getExitHintDirection({ x: MAZE_SIZE - 1, y: MAZE_CENTER }),
-  game.getExitHintDirection({ x: MAZE_CENTER, y: MAZE_SIZE - 1 }),
-  game.getExitHintDirection({ x: 0, y: MAZE_CENTER })
+  game.maps.getExitHintDirection({ x: MAZE_CENTER, y: 0 }),
+  game.maps.getExitHintDirection({ x: MAZE_SIZE - 1, y: MAZE_CENTER }),
+  game.maps.getExitHintDirection({ x: MAZE_CENTER, y: MAZE_SIZE - 1 }),
+  game.maps.getExitHintDirection({ x: 0, y: MAZE_CENTER })
 ]) {
   assert.equal(Math.abs(exitDirection.ux) + Math.abs(exitDirection.uy), 1, "出口箭头必须为正南、正北、正东或正西");
   assert.ok(exitDirection.ux === 0 || exitDirection.uy === 0);
@@ -547,7 +547,7 @@ assert.ok(Object.values(game.state.maze.entities).some((entity) => entity.kind =
 const newEventKey = key(game.state.player.x, game.state.player.y);
 game.state.maze.entities[newEventKey] = { kind: "event", type: "roots" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
-game.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
+game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 assert.equal(elements.storyOverlay.hidden, false);
 assert.ok(elements.storyKicker.textContent.includes("残缺片段"));
 assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
@@ -555,25 +555,25 @@ assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
 assert.ok(elements.storyText.textContent.length > 45);
 dismissAllStories();
 assert.ok(elements.encounterDescription.textContent.length > 12);
-game.crossRoots(newEventKey);
+game.events.crossRoots(newEventKey);
 dismissAllStories();
 assert.equal(game.state.maze.entities[newEventKey], undefined);
 game.state.maze.entities[newEventKey] = { kind: "event", type: "roots" };
-game.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
+game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 assert.equal(elements.storyOverlay.hidden, true, "同类事件的剧情只应播放一次");
-game.leaveEvent(newEventKey);
+game.events.leaveEvent(newEventKey);
 delete game.state.maze.entities[newEventKey];
 game.state.maze.entities[newEventKey] = { kind: "event", type: "cache" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
-game.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
+game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 dismissAllStories();
 assert.ok(elements.encounterDescription.textContent.length > 12);
-game.searchFarmCache(newEventKey);
+game.events.searchFarmCache(newEventKey);
 dismissAllStories();
 assert.equal(game.state.maze.entities[newEventKey], undefined);
 game.state.maze.entities[newEventKey] = { kind: "event", type: "echo" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
-game.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
+game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 dismissAllStories();
 assert.equal(game.state.maze.entities[newEventKey], undefined);
 
@@ -583,67 +583,67 @@ game.state.hp = 40;
 game.state.maxHp = 100;
 game.state.inventory.potion = 1;
 game.state.loreSeen = game.state.loreSeen.filter((loreKey) => loreKey !== "item:potion");
-game.useItem("potion");
+game.inventory.useItem("potion");
 assert.equal(game.state.hp, 70);
 assert.equal(elements.storyOverlay.hidden, true, "使用初始道具不应触发首拾剧情");
 const pickupKey = key(game.state.player.x, game.state.player.y);
 game.state.inventory.potion = 0;
 game.state.maze.entities[pickupKey] = { kind: "pickup", itemType: "potion" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
-game.collectPickup(game.state.maze.entities[pickupKey], pickupKey);
+game.inventory.collectPickup(game.state.maze.entities[pickupKey], pickupKey);
 assert.equal(game.state.inventory.potion, 1, "物品应先进入背包");
 assert.equal(elements.storyOverlay.hidden, true, "拾取故事应先排队，不阻断拾取结算");
-game.updateUI();
+game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, false, "拾取物品后应触发故事");
 assert.ok(elements.storyKicker.textContent.includes("恢复药剂"));
 assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
 assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
 dismissAllStories();
 const exploredBeforeVision = new Set(game.state.explored);
-const normalMetrics = game.getMainViewMetrics(390, 500);
+const normalMetrics = game.renderer.getMainViewMetrics(390, 500);
 game.state.inventory.vision = 1;
-game.useItem("vision");
+game.inventory.useItem("vision");
 dismissAllStories();
-assert.equal(game.getVisionRoomLimit(), Infinity);
-assert.equal(game.getVisionRadius(), Infinity, "视野道具开启时主画面不再受迷雾半径限制");
+assert.equal(game.vision.getVisionRoomLimit(), Infinity);
+assert.equal(game.vision.getVisionRadius(), Infinity, "视野道具开启时主画面不再受迷雾半径限制");
 assert.equal(game.state.visionTurns, 30);
 assert.equal(game.state.explored.length, exploredBeforeVision.size, "临时展开的迷雾不应永久计入已探索区域");
-const expandedMetrics = game.getMainViewMetrics(390, 500);
+const expandedMetrics = game.renderer.getMainViewMetrics(390, 500);
 assert.equal(expandedMetrics.enhanced, true);
 assert.ok(Math.abs(expandedMetrics.tileSize - normalMetrics.tileSize * 0.5) < 0.001, "视野道具应让主地图精确缩小 50%");
 const disabledFogCells = [];
-game.drawWorldFogCells({ save() {}, restore() {}, fillRect() { disabledFogCells.push(1); } }, initialBounds, expandedMetrics.tileSize, true, exploredBeforeVision);
+game.renderer.drawWorldFogCells({ save() {}, restore() {}, fillRect() { disabledFogCells.push(1); } }, initialBounds, expandedMetrics.tileSize, true, exploredBeforeVision);
 assert.equal(disabledFogCells.length, 0, "视野道具生效时应完全关闭格子迷雾");
 game.state.visionTurns = 1;
-game.tickEffects();
-game.updateVisibility();
+game.movement.tickEffects();
+game.vision.updateVisibility();
 assert.equal(game.state.visionTurns, 0);
-assert.equal(game.getVisionRadius(), 2, "视野步数结束后应恢复默认两格");
-assert.equal(game.getVisionRoomLimit(), Infinity);
-assert.ok(game.visibleRooms.size < 100, "效果结束后迷雾应恢复初始范围");
-assert.equal(game.getMainViewMetrics(390, 500).enhanced, false);
+assert.equal(game.vision.getVisionRadius(), 2, "视野步数结束后应恢复默认两格");
+assert.equal(game.vision.getVisionRoomLimit(), Infinity);
+assert.ok(game.vision.visibleRooms.size < 100, "效果结束后迷雾应恢复初始范围");
+assert.equal(game.renderer.getMainViewMetrics(390, 500).enhanced, false);
 game.state.inventory.teleport = 1;
 const beforeTeleport = { ...game.state.player };
-game.useItem("teleport");
+game.inventory.useItem("teleport");
 dismissAllStories();
 assert.notDeepEqual(game.state.player, beforeTeleport);
 assert.equal(game.state.path[game.state.path.length - 1].teleport, true);
 game.state.inventory.execute = 1;
-game.useItem("execute");
+game.inventory.useItem("execute");
 assert.equal(game.state.inventory.execute, 1, "未遇敌时不应消耗一击必杀");
 
 // 发现怪物时不演出；首次击败后才播放随机故事，第二次击败不重复。
 const loreEnemyKey = key(game.state.player.x, game.state.player.y);
 const loreEnemy = { kind: "enemy", type: "rat", hp: 1, revealed: true };
 game.state.loreSeen = game.state.loreSeen.filter((loreKey) => loreKey !== "enemy:rat");
-const timingEventRoll = game.eventRoll;
-game.eventRoll = () => 0.5;
+const timingEventRoll = game.events.eventRoll;
+game.events.eventRoll = () => 0.5;
 game.state.maze.entities[loreEnemyKey] = loreEnemy;
 game.state.lastStoryStep = game.state.totalSteps - 30;
-game.openEnemyEncounter(loreEnemy, { ...game.state.player }, loreEnemyKey, true);
+game.combat.openEnemyEncounter(loreEnemy, { ...game.state.player }, loreEnemyKey, true);
 assert.equal(game.pending.type, "enemy", "发现怪物后应立即打开战斗");
 assert.equal(elements.storyOverlay.hidden, true, "开始战斗前不应播放怪物故事");
-game.fightEnemy(false);
+game.combat.fightEnemy(false);
 assert.equal(game.pending, null);
 assert.equal(elements.storyOverlay.hidden, false, "击败怪物后才播放故事");
 assert.ok(elements.storyKicker.textContent.includes("地穴鼠"));
@@ -654,54 +654,54 @@ assert.ok(game.state.loreSeen.includes("enemy:rat"));
 assert.ok(JSON.parse(localStorage.getItem("dungeon-mizong-save-v1")).loreSeen.includes("enemy:rat"), "首遇记录应写入存档");
 const secondLoreEnemy = { kind: "enemy", type: "rat", hp: 1, revealed: true };
 game.state.maze.entities[loreEnemyKey] = secondLoreEnemy;
-game.openEnemyEncounter(secondLoreEnemy, { ...game.state.player }, loreEnemyKey, true);
-game.fightEnemy(false);
+game.combat.openEnemyEncounter(secondLoreEnemy, { ...game.state.player }, loreEnemyKey, true);
+game.combat.fightEnemy(false);
 assert.equal(elements.storyOverlay.hidden, true, "同类怪物第二次被击败后不应重复故事");
-game.eventRoll = timingEventRoll;
+game.events.eventRoll = timingEventRoll;
 
 // 击败怪物后按概率在原地生成可立即开启的宝箱。
-const originalEventRoll = game.eventRoll;
-game.eventRoll = () => 0;
+const originalEventRoll = game.events.eventRoll;
+game.events.eventRoll = () => 0;
 const dropKey = key(game.state.player.x, game.state.player.y);
 const dropEnemy = { kind: "enemy", type: "rat", hp: 1, revealed: true };
 game.state.maze.entities[dropKey] = dropEnemy;
 game.pending = { type: "enemy", enemy: dropEnemy, target: { ...game.state.player }, key: dropKey, surprise: true };
-game.fightEnemy(false);
+game.combat.fightEnemy(false);
 assert.equal(game.state.maze.entities[dropKey].type, "chest");
 assert.equal(elements.storyOverlay.hidden, true, "击杀故事后的掉落宝箱剧情应受 30 步冷却限制");
 assert.ok(game.state.pendingStories.some((entry) => entry.scene.id.startsWith("lore-event-chest-")), "冷却中的宝箱剧情应保留在队列");
 assert.equal(game.pending.type, "event", "掉落宝箱应立即进入开启事件");
-game.openChest(dropKey);
+game.events.openChest(dropKey);
 dismissAllStories();
-game.eventRoll = originalEventRoll;
+game.events.eventRoll = originalEventRoll;
 
 // 冷却期内的剧情按优先级缓存；每满 30 步只弹一条，关闭后同一步绝不连弹。
 game.state.pendingStories = [];
 game.state.lastStoryStep = game.state.totalSteps;
 for (const loreKey of ["item:vision", "event:fountain", "enemy:skeleton"]) {
   game.state.loreSeen = game.state.loreSeen.filter((seenKey) => seenKey !== loreKey);
-  assert.equal(game.queueFirstLore(loreKey), true);
+  assert.equal(game.story.queueFirstLore(loreKey), true);
 }
 assert.equal(game.state.pendingStories.length, 3);
 assert.equal(elements.storyOverlay.hidden, true);
 game.state.totalSteps += 29;
-game.updateUI();
+game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "未满 30 步不能播放缓存剧情");
 game.state.totalSteps += 1;
-game.updateUI();
+game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "同批剧情应优先播放怪物击杀故事");
 dismissAllStories();
 assert.equal(game.state.pendingStories.length, 2);
-game.updateUI();
+game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "关闭演出后同一步不能连续弹出下一条");
 game.state.totalSteps += 30;
-game.updateUI();
+game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("生命泉"), "第二个周期应播放事件故事");
 dismissAllStories();
-game.updateUI();
+game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "事件故事关闭后仍需重新累计 30 步");
 game.state.totalSteps += 30;
-game.updateUI();
+game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("视野拓宽"), "第三个周期才播放低优先级道具故事");
 dismissAllStories();
 assert.equal(game.state.pendingStories.length, 0);
@@ -739,7 +739,7 @@ assert.equal(game.state.player.x, exit.x);
 assert.equal(game.state.player.y, exit.y);
 assert.ok(game.state.discoveredExits.length >= 1);
 assert.ok(localStorage.getItem("dungeon-mizong-save-v1"), "活跃游戏应自动保存");
-game.openExitEncounter();
+game.events.openExitEncounter();
 const leaveMazeButton = elements.encounterActions.children[0];
 assert.equal(leaveMazeButton.textContent, "离开迷宫");
 leaveMazeButton.listeners.click[0]();
@@ -784,14 +784,14 @@ assert.equal(elements.endReveal.textContent.includes("无法回应"), false);
 game.startNewGame();
 dismissAllStories();
 game.state.logs = [];
-game.updateLog(true);
-for (let i = 1; i <= 405; i += 1) game.addLog("system", "·", `回归日志 ${i}`);
+game.ui.updateLog(true);
+for (let i = 1; i <= 405; i += 1) game.ui.addLog("system", "·", `回归日志 ${i}`);
 assert.equal(game.state.logs.length, 200);
 assert.equal(elements.eventLog.children.length, 200);
 assert.equal(elements.eventLog.children[0].children[2].textContent, "回归日志 206");
 assert.equal(elements.eventLog.children[199].children[2].textContent, "回归日志 405", "数组长度不变时也应显示最新日志");
 elements.eventLog.scrollTop = 0;
-game.addLog("system", "·", "浏览旧记录时到达的新事件");
+game.ui.addLog("system", "·", "浏览旧记录时到达的新事件");
 assert.equal(elements.newEventBadge.hidden, false, "达到容量上限后仍应显示未读提示");
 assert.equal(elements.eventLog.scrollTop, 0, "用户浏览旧记录时不应强制跳到底部");
 game.save();
@@ -803,7 +803,7 @@ game.startNewGame();
 const introSnapshot = JSON.parse(JSON.stringify(game.state.currentStory));
 assert.ok(introSnapshot && introSnapshot.id.startsWith("intro-"));
 assert.equal(game.state.storyScenes.includes(introSnapshot.id), false, "尚未确认的开场不能标记完成");
-game.queueFirstLore("item:potion");
+game.story.queueFirstLore("item:potion");
 game.continueGame();
 assert.equal(elements.storyText.textContent, introSnapshot.text, "开场中断后应恢复原文");
 assert.equal(elements.storyOverlay.hidden, false);
@@ -816,10 +816,10 @@ assert.equal(JSON.parse(localStorage.getItem("dungeon-mizong-save-v1")).currentS
 game.continueGame();
 assert.equal(elements.storyOverlay.hidden, true, "已读开场不应重播，待播物品仍遵守冷却");
 game.state.totalSteps = 30;
-game.updateUI();
+game.ui.updateUI();
 const itemSnapshot = JSON.parse(JSON.stringify(game.state.currentStory));
 assert.ok(itemSnapshot.id.startsWith("lore-item-potion-"));
-game.queueFirstLore("enemy:rat");
+game.story.queueFirstLore("enemy:rat");
 for (let restore = 0; restore < 2; restore += 1) {
   game.continueGame();
   assert.equal(elements.storyText.textContent, itemSnapshot.text);
@@ -833,10 +833,10 @@ assert.ok(game.state.storyScenes.includes(itemSnapshot.id));
 game.continueGame();
 assert.equal(elements.storyOverlay.hidden, true, "确认后再次继续游戏不能重播或连弹");
 game.state.totalSteps = 59;
-game.updateUI();
+game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true);
 game.state.totalSteps = 60;
-game.updateUI();
+game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("地穴鼠"));
 dismissAllStories();
 const legacyStorySave = JSON.parse(localStorage.getItem("dungeon-mizong-save-v1"));
@@ -859,7 +859,7 @@ const combatCases = [
   { name: "同血量直接战败", type: "rat", hp: 10, poison: 0, surprise: false, execute: false, expectedHp: 0, expectedPoison: 0 },
   { name: "伏击必杀无需走步", type: "rat", hp: 1, poison: 1, surprise: true, execute: true, expectedHp: 1, expectedPoison: 1 }
 ];
-const combatEventRoll = game.eventRoll;
+const combatEventRoll = game.events.eventRoll;
 for (const testCase of combatCases) {
   game.startNewGame();
   dismissAllStories();
@@ -868,15 +868,15 @@ for (const testCase of combatCases) {
   game.state.hp = testCase.hp;
   game.state.poisonTurns = testCase.poison;
   game.state.inventory.execute = testCase.execute ? 1 : 0;
-  game.eventRoll = () => 0.5;
+  game.events.eventRoll = () => 0.5;
   const nextRoom = neighbors(game.state, game.state.player)[0];
   const target = testCase.surprise ? { ...game.state.player } : { x: nextRoom.x, y: nextRoom.y };
   const targetKey = key(target.x, target.y);
   const enemy = { kind: "enemy", type: testCase.type, hp: 10, revealed: true };
   game.state.maze.entities[targetKey] = enemy;
-  const predicted = game.getCombatOutcome(enemy, testCase.surprise, testCase.execute);
+  const predicted = game.combat.getCombatOutcome(enemy, testCase.surprise, testCase.execute);
   assert.equal(predicted.hpAfterAction, testCase.expectedHp, `${testCase.name}：计算值应正确`);
-  game.openEnemyEncounter(enemy, target, targetKey, testCase.surprise);
+  game.combat.openEnemyEncounter(enemy, target, targetKey, testCase.surprise);
   if (!testCase.execute && predicted.defeated && !predicted.survives) {
     assert.ok(elements.encounterOutcome.textContent.includes("毒伤会立即结束本局"), `${testCase.name}：必须明确警告`);
   } else if (!testCase.execute && predicted.survives) {
@@ -885,14 +885,14 @@ for (const testCase of combatCases) {
   if (testCase.execute && !predicted.survives) {
     assert.ok(elements.encounterActions.children[1].textContent.includes("毒伤致命"));
   }
-  game.fightEnemy(testCase.execute);
+  game.combat.fightEnemy(testCase.execute);
   assert.equal(game.state.hp, predicted.hpAfterAction, `${testCase.name}：预告与实际血量必须一致`);
   assert.equal(game.state.poisonTurns, testCase.expectedPoison, `${testCase.name}：中毒时长必须一致`);
   assert.equal(game.state.active, testCase.expectedHp > 0);
   assert.equal(game.state.totalSteps, predicted.defeated && !testCase.surprise ? 1 : 0);
   dismissAllStories();
 }
-game.eventRoll = combatEventRoll;
+game.events.eventRoll = combatEventRoll;
 
 console.log(JSON.stringify({
   connectedRooms: reachable.size,

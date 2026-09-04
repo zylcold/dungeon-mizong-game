@@ -1,5 +1,14 @@
 # 版本记录
 
+## 1.11.0
+
+- 按 core、data、state、systems、rendering、ui 拆分源码，保留原有游戏规则、剧情和存档格式。
+- 使用 esbuild 将 ES Modules 构建为 ES2017 / Chrome 61 目标的离线经典脚本。
+- 新增固定四文件白名单、资源路径、语法、禁用能力、ZIP 内容及体积校验；生成可重复 ZIP 和 SHA-256。
+- 新增 8 项规则/存档/产物测试，保留完整状态机与 DOM/Canvas 模拟回归。
+- 新增 GitHub Actions：推送与 PR 构建测试，发布同版本 Release 后上传小红书 ZIP 与校验文件。
+- 更新开发命令、目录职责和 AGENTS.md；未进行手机真机或 Chrome 61 实测。
+
 ## 仓库初始化（基于 1.10.1）
 
 - 纳入完整游戏源码、PNG 精灵图集、图标与回归测试。

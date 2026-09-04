@@ -1,6 +1,7 @@
 # Local build outputs
 /dist/
 /build/
+/release/
 *.zip
 
 # Dependencies and test output

@@ -1,10 +1,21 @@
 {
   "name": "dungeon-mizong",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "private": true,
+  "type": "module",
   "description": "兼容 Chrome 61 的移动端随机事件迷宫 Roguelike",
   "scripts": {
-    "test": "node tests/smoke.test.js",
-    "start": "python3 -m http.server 8080"
+    "test": "npm run build && node --test tests/unit.test.mjs tests/artifact.test.mjs && node tests/smoke.test.cjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check-artifact.mjs",
+    "package": "npm test && node scripts/package.mjs",
+    "start": "node scripts/dev.mjs",
+    "dev": "node scripts/dev.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "acorn": "8.18.0",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3"
   }
 }
