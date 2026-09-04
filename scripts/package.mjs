@@ -21,7 +21,8 @@ export function archiveRuntime(files) {
 export function packageGame() {
   const version = PACKAGE.version;
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error("无效版本号");
-  if (process.env.RELEASE_TAG && process.env.RELEASE_TAG !== `v${version}`) {
+  const releaseTag = process.env.RELEASE_TAG ? process.env.RELEASE_TAG.replace(/^v/, "") : "";
+  if (releaseTag && releaseTag !== version) {
     throw new Error(`Release 标签必须与 package.json 一致：v${version}`);
   }
   const files = readDirectory(DIST);
