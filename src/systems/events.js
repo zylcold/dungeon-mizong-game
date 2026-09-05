@@ -360,10 +360,10 @@ export class EventSystem {
     this.game.state.dismissedKey = key;
     this.game.ui.hideEncounter();
     this.game.pending = null;
+    this.attemptPendingLore();
     this.game.ui.updateUI();
     this.game.save();
     this.game.renderer.render();
-    this.attemptPendingLore();
   }
 
   dismissEncounter() {
@@ -375,20 +375,21 @@ export class EventSystem {
     if (this.game.pending.type === "event") this.game.state.dismissedKey = this.game.pending.key;
     this.game.pending = null;
     this.game.ui.hideEncounter();
-    this.game.save();
-    this.game.renderer.render();
     // 直接关闭面板等同于「暂时离开」：当场尝试剧情，残留的待演键绝不能留到之后的结算点补播。
     this.attemptPendingLore();
+    this.game.save();
+    this.game.renderer.render();
   }
 
   finishEncounter(save = true) {
     this.game.pending = null;
     this.game.ui.hideEncounter();
+    // 结算剧情优先于血量线：先于 updateUI 尝试，主动作自己的故事不被挤掉。
+    this.attemptPendingLore();
     this.game.vision.updateVisibility();
     this.game.ui.updateUI();
     if (save) this.game.save();
     this.game.renderer.render();
-    this.attemptPendingLore();
   }
 
   openExitEncounter() {

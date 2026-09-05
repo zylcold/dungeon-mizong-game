@@ -16,6 +16,7 @@ export class StorySystem {
     this.game = game;
     this.dom = game.dom;
     this.storyOnClose = null;
+    this.proximateHold = false;
   }
 
   pickCopy(items, key, salt) {
@@ -52,6 +53,9 @@ export class StorySystem {
     if (healthRatio >= previousLow) return;
     this.game.state.hpStoryRatioLow = healthRatio;
     this.game.save();
+    // 主动作（击杀/事件结算）进行中时血量新低只记账、不尝试演出，
+    // 把这一刻的演出机会让给主动作自己的剧情；被让位的血量线按跳过处理，绝不补播。
+    if (this.proximateHold) return;
     const eligible = STORY_SCENES.filter((scene) => (
       healthRatio <= scene.threshold && !this.game.state.storyScenes.includes(scene.id)
     ));

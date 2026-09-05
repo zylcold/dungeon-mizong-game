@@ -898,6 +898,32 @@ game.continueGame();
 assert.equal(game.state.currentStory, null, "旧存档缺少 currentStory 时应兼容恢复");
 assert.equal(elements.storyOverlay.hidden, true);
 
+// 序章后有 20 步呼吸期：新局 lastNormalStoryStep 从 0 起算，20 步内的普通触发直接跳过。
+game.startNewGame();
+dismissAllStories();
+assert.equal(game.state.lastNormalStoryStep, 0, "新局普通剧情间隔从第 0 步起算");
+assert.equal(game.story.tryPlayLore("item:potion"), false, "开局 20 步内的触发直接跳过");
+game.state.totalSteps = 19;
+assert.equal(game.story.tryPlayLore("item:potion"), false, "第 19 步仍跳过");
+game.state.totalSteps = 20;
+assert.equal(game.story.tryPlayLore("item:potion"), true, "第 20 步起可演出");
+dismissAllStories();
+
+// 主动作优先：击杀/结算进行中血量新低只记账不抢戏，hold 结束后也不补播。
+game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
+game.state.maxHp = 100;
+game.state.hp = 14;
+game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
+game.story.proximateHold = true;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "主动作进行中血量线不抢戏");
+assert.ok(game.state.hpStoryRatioLow <= 0.14, "血量新低已记账");
+game.story.proximateHold = false;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "hold 结束后也不补播");
+game.state.hp = game.state.maxHp;
+
 // 战斗结果按真实血量核对，不补血；覆盖本步毒伤、伏击不走步、一击必杀和直接战败。
 const combatCases = [
   { name: "新中毒立即致死", type: "slime", hp: 11, poison: 0, surprise: false, execute: false, expectedHp: 0, expectedPoison: 2 },
