@@ -43,16 +43,21 @@ export class StorySystem {
   }
 
   checkStoryProgress() {
-    if (!this.game.state || !this.game.state.active || this.game.state.hp <= 0 || this.game.state.currentStory || !this.dom.storyOverlay.hidden) return;
+    if (!this.game.state || !this.game.state.active || this.game.state.hp <= 0) return;
     this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
     const healthRatio = this.game.state.hp / Math.max(1, this.game.state.maxHp);
+    // 血量线只在「创下新低」的那一刻尝试一次：被跳过即彻底丢弃，等下一次新低再走触发逻辑，
+    // 绝不在间隔恢复后回头补播（那会让玩家在几步后看到莫名其妙的演出）。
+    const previousLow = Number.isFinite(this.game.state.hpStoryRatioLow) ? this.game.state.hpStoryRatioLow : 1;
+    if (healthRatio >= previousLow) return;
+    this.game.state.hpStoryRatioLow = healthRatio;
+    this.game.save();
     const eligible = STORY_SCENES.filter((scene) => (
       healthRatio <= scene.threshold && !this.game.state.storyScenes.includes(scene.id)
     ));
     if (!eligible.length) return;
     const scene = eligible[eligible.length - 1];
     const variant = this.pickStoryVariant(scene.id, scene);
-    // 演出被跳过时不标记 storyScenes，血量下次检查会重新尝试。
     this.tryPlayStory({
       id: `${scene.id}-${variant.key}`,
       kicker: `记忆残片 · ${scene.title}`,

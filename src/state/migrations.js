@@ -15,6 +15,7 @@ export function restoreState(state) {
   state.lastNormalStoryStep = Number.isFinite(state.lastNormalStoryStep) ? state.lastNormalStoryStep : state.lastStoryStep;
   // 演出队列已移除：旧档中排队内容直接丢弃，等对应内容下次触发时再走演出逻辑。
   delete state.pendingStories;
+  state.hpStoryRatioLow = Number.isFinite(state.hpStoryRatioLow) ? state.hpStoryRatioLow : 1;
   delete state.storySequence;
   delete state.normalStoryGapJitter;
   const currentStory = state.currentStory;

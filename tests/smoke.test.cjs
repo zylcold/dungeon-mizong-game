@@ -726,6 +726,42 @@ const cooldownSave = JSON.parse(localStorage.getItem("dungeon-mizong-save-v1"));
 assert.equal(cooldownSave.lastStoryStep, game.state.totalSteps, "剧情间隔进度应写入存档");
 assert.equal(cooldownSave.pendingStories, undefined, "待播队列已移除，存档不再包含队列字段");
 
+// 血量线跳过即弃：间隔不足时越过阈值不演出，间隔恢复后也不补播，只在下一次新低时重新尝试。
+game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
+game.state.hp = 20;
+game.state.lastStoryStep = game.state.totalSteps;
+game.state.lastNormalStoryStep = game.state.totalSteps;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "间隔不足时血量新低的演出被跳过");
+game.state.totalSteps += 20;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "间隔恢复后不回头补播");
+game.state.hp = 15;
+game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, false, "血量下一次新低时重新走触发逻辑");
+assert.ok(elements.storyKicker.textContent.includes("记忆残片"));
+dismissAllStories();
+game.state.hp = game.state.maxHp;
+
+// 直接关闭事件面板也当场清空待演键，残留剧情绝不在之后的结算点补播。
+game.state.loreSeen = game.state.loreSeen.filter((seenKey) => seenKey !== "event:chest");
+game.state.lastStoryStep = game.state.totalSteps;
+game.state.lastNormalStoryStep = game.state.totalSteps;
+const closeChestKey = key(game.state.player.x, game.state.player.y);
+game.state.dismissedKey = null;
+game.state.maze.entities[closeChestKey] = { kind: "event", type: "chest" };
+game.events.resolveEvent(game.state.maze.entities[closeChestKey], closeChestKey);
+assert.equal(game.events.pendingLoreKey, "event:chest", "面板打开时记录待演键");
+game.events.dismissEncounter();
+assert.equal(game.events.pendingLoreKey, null, "直接关闭面板当场清空待演键");
+assert.equal(game.state.loreSeen.includes("event:chest"), false, "间隔不足时跳过且不标记已读");
+game.state.totalSteps += 20;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "被跳过的剧情不会在之后补播");
+delete game.state.maze.entities[closeChestKey];
+
 // 找到并击败一个敌人。
 const enemyEntry = Object.entries(game.state.maze.entities).find(([, entity]) => entity.kind === "enemy");
 assert.ok(enemyEntry);

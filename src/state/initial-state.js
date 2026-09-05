@@ -30,6 +30,7 @@ export function createInitialState() {
     storyTriggerVersion: STORY_TRIGGER_VERSION,
     lastStoryStep: -NORMAL_STORY_MIN_GAP_STEPS,
     lastNormalStoryStep: -NORMAL_STORY_MIN_GAP_STEPS,
+    hpStoryRatioLow: 1,
     currentStory: null,
     nextAmbientStep: 7 + Math.floor(mulberry32(seed ^ 0xa5a5a5a5)() * 7),
     stats: {

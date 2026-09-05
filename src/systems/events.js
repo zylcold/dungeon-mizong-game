@@ -377,6 +377,8 @@ export class EventSystem {
     this.game.ui.hideEncounter();
     this.game.save();
     this.game.renderer.render();
+    // 直接关闭面板等同于「暂时离开」：当场尝试剧情，残留的待演键绝不能留到之后的结算点补播。
+    this.attemptPendingLore();
   }
 
   finishEncounter(save = true) {
