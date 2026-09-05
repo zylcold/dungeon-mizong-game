@@ -5,6 +5,7 @@
 - `sprites-atlas.png`：1400×1120 带透明通道的优化索引色 PNG 图集
 - `sprites-atlas.json`：5×4 图集索引
 - `app-icon.png`：512×512 项目预览图标（轻应用发布包不包含）
+- `app-icon-v2.png`：1254×1254 不透明高清版预览图标（轻应用发布包不包含）
 
 每个精灵格为 280×280 像素。Canvas 通过 `drawImage` 的源矩形参数裁切；HTML 界面通过同一张图集的 CSS 背景定位显示。
 
