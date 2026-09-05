@@ -4,7 +4,7 @@
 
 当前版本：**1.12.0**。源码仓库包含模块化游戏、PNG 素材、回归测试和小红书小工具打包技能。
 
-维护入口：[AGENTS.md](AGENTS.md) · [版本记录](CHANGELOG.md) · [素材说明](assets/README.md)。
+维护入口：[AGENTS.md](AGENTS.md) · [玩法规则](GAMEPLAY.md) · [版本记录](CHANGELOG.md) · [素材说明](assets/README.md)。
 
 ## 已实现
 
