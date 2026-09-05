@@ -1,6 +1,6 @@
 /** 应用生命周期与各职责模块的组合入口；共享状态只在此持有。 */
-import { DEFAULT_VISION_RADIUS, STORY_PRIORITY } from "./config.js";
-import { OPENING_STORY, getEnding } from "./data/endings.js";
+import { DEFAULT_VISION_RADIUS } from "./config.js";
+import { getEnding } from "./data/endings.js";
 import { MapRenderer } from "./rendering/map-renderer.js";
 import { MazeRenderer } from "./rendering/maze-renderer.js";
 import { createInitialState } from "./state/initial-state.js";
@@ -74,8 +74,7 @@ export class DungeonGame {
     this.save();
     this.renderer.render();
     this.ui.showToast("滑动探索未知区域，点击已探索区域自动寻路");
-    this.story.queueRandomStory("intro", "序章 · 醒来", OPENING_STORY, "开始探索", STORY_PRIORITY.intro, { special: true });
-    this.story.tryShowPendingStory();
+    this.story.playOpeningStory();
   }
 
   continueGame() {
@@ -106,7 +105,6 @@ export class DungeonGame {
     this.state.active = false;
     this.pending = null;
     this.ui.hideEncounter();
-    this.state.pendingStories = [];
     this.state.currentStory = null;
     this.story.storyOnClose = null;
     this.dom.storyOverlay.hidden = true;

@@ -104,8 +104,9 @@ export class InventorySystem {
     this.game.ui.showToast("瞬移完成");
   }
 
-  addItem(itemType, amount) {
+  addItem(itemType, amount, deferLore = false) {
     this.game.state.inventory[itemType] = (this.game.state.inventory[itemType] || 0) + amount;
-    this.game.story.queueFirstLore(`item:${itemType}`);
+    // 事件结算内获得的道具延迟演出（由事件收尾统一尝试），拾取时立即尝试。
+    if (!deferLore) this.game.story.tryPlayLore(`item:${itemType}`);
   }
 }

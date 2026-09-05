@@ -1,7 +1,8 @@
-/** 剧情优先队列、限频与未读演出恢复。 */
-import { NORMAL_STORY_GAP_JITTER_STEPS, NORMAL_STORY_MIN_GAP_STEPS, STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
+/** 剧情即时演出：触发即播，条件不满足直接跳过，等下次同类触发再走完整逻辑；不维护演出队列。 */
+import { NORMAL_STORY_MIN_GAP_STEPS } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
+import { OPENING_STORY } from "../data/endings.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
 
 const STORY_VARIANT_FILLERS = [
@@ -50,11 +51,15 @@ export class StorySystem {
     ));
     if (!eligible.length) return;
     const scene = eligible[eligible.length - 1];
-    eligible.forEach((item) => {
-      if (!this.game.state.storyScenes.includes(item.id)) this.game.state.storyScenes.push(item.id);
+    const variant = this.pickStoryVariant(scene.id, scene);
+    // 演出被跳过时不标记 storyScenes，血量下次检查会重新尝试。
+    this.tryPlayStory({
+      id: `${scene.id}-${variant.key}`,
+      kicker: `记忆残片 · ${scene.title}`,
+      text: variant.text,
+      buttonLabel: "继续前行",
+      markIds: [scene.id]
     });
-    this.queueRandomStory(scene.id, `记忆残片 · ${scene.title}`, scene, "继续前行", STORY_PRIORITY.health);
-    this.game.save();
   }
 
   pickStoryVariant(sceneKey, story) {
@@ -97,94 +102,62 @@ export class StorySystem {
     return unique.slice(0, 5);
   }
 
-  queueRandomStory(sceneKey, kicker, story, buttonLabel = "继续", priority = STORY_PRIORITY.event, options = {}) {
-    const variant = this.pickStoryVariant(sceneKey, story);
-    this.scheduleStory({
-      id: `${sceneKey}-${variant.key}`,
-      kicker,
+  playOpeningStory() {
+    const variant = this.pickStoryVariant("intro", OPENING_STORY);
+    return this.tryPlayStory({
+      id: `intro-${variant.key}`,
+      kicker: "序章 · 醒来",
       text: variant.text,
-      buttonLabel
-    }, priority, options);
+      buttonLabel: "开始探索"
+    }, { special: true });
   }
 
-  queueFirstLore(loreKey) {
+  tryPlayLore(loreKey) {
     if (!this.game.state || !this.game.state.active) return false;
     const lore = LORE_SCENES[loreKey];
     if (!lore) return false;
     this.game.state.loreSeen = Array.isArray(this.game.state.loreSeen) ? this.game.state.loreSeen : [];
     if (this.game.state.loreSeen.includes(loreKey)) return false;
-    this.game.state.loreSeen.push(loreKey);
     const sceneId = loreKey.replace(":", "-");
-    const category = loreKey.split(":")[0];
-    this.queueRandomStory(
-      `lore-${sceneId}`,
-      `残缺片段 · ${lore.title}`,
-      lore,
-      "继续",
-      STORY_PRIORITY[category] || STORY_PRIORITY.item
-    );
-    this.game.save();
-    return true;
-  }
-
-  scheduleStory(scene, priority, options = {}) {
-    if (!this.game.state || !this.game.state.active) return false;
-    this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
-    if (this.game.state.pendingStories.some((entry) => entry.scene.id === scene.id)) return false;
-    this.game.state.storySequence = Number.isFinite(this.game.state.storySequence) ? this.game.state.storySequence : 0;
-    this.game.state.pendingStories.push({
-      scene,
-      priority,
-      triggerStep: this.game.state.totalSteps,
-      order: this.game.state.storySequence,
-      special: Boolean(options.special)
+    const variant = this.pickStoryVariant(`lore-${sceneId}`, lore);
+    const played = this.tryPlayStory({
+      id: `lore-${sceneId}-${variant.key}`,
+      kicker: `残缺片段 · ${lore.title}`,
+      text: variant.text,
+      buttonLabel: "继续"
     });
-    this.game.state.storySequence += 1;
-    this.game.save();
-    return true;
+    // 只有真正演出过才标记 loreSeen；被跳过的片段留待下次同类触发重试。
+    if (played) {
+      this.game.state.loreSeen.push(loreKey);
+      this.game.save();
+    }
+    return played;
   }
 
-  tryShowPendingStory() {
-    if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
-    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗普通演出间隔额度。
-    if (this.game.state.currentStory) return this.showStory(this.game.state.currentStory);
-    this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
-    if (!this.game.state.pendingStories.length) return false;
-    this.game.state.pendingStories.sort((a, b) => (
-      b.priority - a.priority || a.triggerStep - b.triggerStep || a.order - b.order
-    ));
-    const specialIndex = this.game.state.pendingStories.findIndex((entry) => (
-      entry.special || /^intro-|^ending-/u.test(entry.scene.id)
-    ));
-    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
+  tryPlayStory(scene, options = {}) {
+    if (!this.game.state || !this.game.state.active) return false;
+    if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
+    if (this.game.state.currentStory) return false;
+    const special = Boolean(options.special) || /^intro-|^ending-/u.test(scene.id);
+    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -NORMAL_STORY_MIN_GAP_STEPS;
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
-    const gapJitter = Number.isFinite(this.game.state.normalStoryGapJitter) ? this.game.state.normalStoryGapJitter : 0;
+    // 同一步绝不连弹；普通演出至少间隔 20 步，间隔内触发直接跳过、不排队。
     if (this.game.state.totalSteps === lastStep) return false;
-    // 普通演出间隔 = 最小 20 步 + 每次演出后掷出的 0-10 步随机延后，避免每次踩点触发。
-    if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS + gapJitter) return false;
-    const entry = specialIndex >= 0
-      ? this.game.state.pendingStories.splice(specialIndex, 1)[0]
-      : this.game.state.pendingStories.shift();
+    if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
+    if (!this.showStory(scene)) return false;
     this.game.state.lastStoryStep = this.game.state.totalSteps;
-    if (!(entry.special || /^intro-|^ending-/u.test(entry.scene.id))) {
-      this.game.state.lastNormalStoryStep = this.game.state.totalSteps;
-      const jitterKey = roomKey(this.game.state.player.x, this.game.state.player.y);
-      this.game.state.normalStoryGapJitter = Math.floor(
-        this.game.events.eventRoll(jitterKey, `story-gap-${this.game.state.totalSteps}`) * (NORMAL_STORY_GAP_JITTER_STEPS + 1)
-      );
-    }
-    const shown = this.showStory(entry.scene);
-    if (!shown) {
-      this.game.state.pendingStories.unshift(entry);
-      this.game.state.lastStoryStep = lastStep;
-      this.game.state.lastNormalStoryStep = lastNormalStep;
-      this.game.state.normalStoryGapJitter = gapJitter;
-      return false;
-    }
+    if (!special) this.game.state.lastNormalStoryStep = this.game.state.totalSteps;
     this.game.save();
     return true;
+  }
+
+  tryResumeStory() {
+    if (!this.game.state || !this.game.state.active || !this.game.state.currentStory) return false;
+    if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
+    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗普通演出间隔额度。
+    return this.showStory(this.game.state.currentStory);
   }
 
   showStory({ id, kicker, text, buttonLabel = "继续", onClose = null, markIds = [] }) {

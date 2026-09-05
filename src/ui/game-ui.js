@@ -151,7 +151,7 @@ export class GameUI {
     if (forceLog) this.lastRenderedLogLength = -1;
     this.updateLog(forceLog);
     this.game.story.checkStoryProgress();
-    this.game.story.tryShowPendingStory();
+    this.game.story.tryResumeStory();
   }
 
   showStatus(message) {
