@@ -81,7 +81,10 @@ export class StorySystem {
     const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
     [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
-    if (unique.length < 3 && baseA) pushUnique(baseA);
+    if (unique.length < 3 && baseA) {
+      pushUnique(`${baseA}\n\n你停下半息，确认这段念头还在脑海里。`);
+      pushUnique("你把这段记忆压在心底，继续向前。");
+    }
     return unique.slice(0, 5);
   }
 
