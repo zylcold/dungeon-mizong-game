@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { generateMaze, shortestPath } from "../src/core/maze.js";
 import { calculateCombatOutcome } from "../src/core/combat.js";
 import { restoreState } from "../src/state/migrations.js";
 import { SaveStore } from "../src/state/save-store.js";
-import { SAVE_VERSION, STORAGE_KEY, RECORD_KEY, STORY_TRIGGER_VERSION } from "../src/config.js";
+import { DEV_DIARY } from "../src/data/dev-diary.js";
+import { SAVE_VERSION, STORAGE_KEY, RECORD_KEY, STORY_TRIGGER_VERSION, APP_VERSION } from "../src/config.js";
 
 test("迷宫模块不依赖 DOM，同一种子生成相同拓扑和实体", () => {
   const first = generateMaze(20260904);
@@ -56,4 +58,25 @@ test("存储层独立保存、读取与结算，只清除当前进度", () => {
   assert.equal(values.get("unrelated"), "keep");
   assert.equal(JSON.parse(values.get(RECORD_KEY)).length, 20);
   assert.equal(store.loadRecords()[0].steps, 24);
+});
+
+test("发版信息三处同步：package.json、APP_VERSION 与开发者日记首条", () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(pkg.version, APP_VERSION);
+  assert.equal(DEV_DIARY[0].version, APP_VERSION);
+  assert.equal(new Set(DEV_DIARY.map((entry) => entry.version)).size, DEV_DIARY.length, "日记版本号不应重复");
+});
+
+test("开发者日记已读进度独立保存，不影响存档与纪录", () => {
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key)
+  };
+  const store = new SaveStore(storage);
+  assert.equal(store.loadSeenDiaryVersion(), null);
+  store.saveSeenDiaryVersion("1.11.0");
+  assert.equal(store.loadSeenDiaryVersion(), "1.11.0");
+  assert.equal(values.has(STORAGE_KEY), false);
 });

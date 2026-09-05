@@ -1,6 +1,6 @@
 {
   "name": "dungeon-mizong",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "private": true,
   "type": "module",
   "description": "兼容 Chrome 61 的移动端随机事件迷宫 Roguelike",

@@ -129,7 +129,7 @@ const elementIds = [
   "floorValue", "healthText", "healthFill", "stepsValue", "statusChip", "eventLog", "newEventBadge",
   "encounterCard", "encounterIcon", "encounterKicker", "encounterTitle", "encounterDescription",
   "encounterOutcome", "encounterActions", "encounterClose", "startOverlay", "continueButton", "newGameButton",
-  "bestRecord", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
+  "bestRecord", "diaryOverlay", "diaryClose", "diaryList", "diaryButton", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
   "storyOverlay", "storyKicker", "storyText", "storyContinueButton",
   "restartButton", "toast", "countPotion", "countVision", "countExecute", "countTeleport", "timerVision"
 ];
@@ -139,6 +139,7 @@ elements.mapOverlay.hidden = true;
 elements.endOverlay.hidden = true;
 elements.encounterCard.hidden = true;
 elements.storyOverlay.hidden = true;
+elements.diaryOverlay.hidden = true;
 elements.continueButton.hidden = true;
 elements.timerVision.hidden = true;
 elements.newEventBadge.hidden = true;
@@ -214,6 +215,22 @@ assert.ok(elements.storyText.textContent.length > 60);
 elements.storyContinueButton.listeners.click[0]();
 assert.equal(elements.storyOverlay.hidden, true, "开场每局只播放随机选中的一段故事");
 assert.equal(rootStyleValues["--app-safe-area-top"], "96px", "移动端应同时避让状态栏与宿主导航工具栏");
+
+// 开发者日记：新玩家不自动弹出，老玩家升级后首次进入自动展示一次。
+assert.equal(elements.diaryOverlay.hidden, true, "新玩家首次进入不应自动弹出开发者日记");
+store.set("dungeon-mizong-diary-v1", "1.11.0");
+game.devDiary.maybeShowOnLaunch();
+assert.equal(elements.diaryOverlay.hidden, false, "升级后首次进入应自动展示开发者日记");
+assert.equal(store.get("dungeon-mizong-diary-v1"), "1.12.0", "展示后应记录已读版本");
+elements.diaryClose.listeners.click[0]();
+assert.equal(elements.diaryOverlay.hidden, true, "关闭按钮应关闭开发者日记");
+game.devDiary.maybeShowOnLaunch();
+assert.equal(elements.diaryOverlay.hidden, true, "同一版本只自动展示一次");
+elements.diaryButton.listeners.click[0]();
+assert.equal(elements.diaryOverlay.hidden, false, "开始界面入口可随时打开开发者日记");
+assert.equal(elements.diaryList.children.length, 2, "开发者日记应包含两个版本的记录");
+elements.diaryOverlay.listeners.click[0]({ target: elements.diaryOverlay });
+assert.equal(elements.diaryOverlay.hidden, true, "点击遮罩应关闭开发者日记");
 
 assert.equal(game.state.active, true);
 assert.equal(game.state.storyTriggerVersion, 3, "新局应使用带冷却和优先级的剧情触发规则");

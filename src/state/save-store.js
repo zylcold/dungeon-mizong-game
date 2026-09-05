@@ -1,5 +1,5 @@
 /** 本地进度与个人纪录读写；可注入存储适配器测试。 */
-import { RECORD_KEY, SAVE_VERSION, STORAGE_KEY } from "../config.js";
+import { DIARY_KEY, RECORD_KEY, SAVE_VERSION, STORAGE_KEY } from "../config.js";
 
 export class SaveStore {
   constructor(storage) {
@@ -37,6 +37,23 @@ export class SaveStore {
     records.push(record);
     records.sort((a, b) => b.steps - a.steps || (b.explored || 0) - (a.explored || 0));
     this.storage.setItem(RECORD_KEY, JSON.stringify(records.slice(0, 20)));
+  }
+
+  loadSeenDiaryVersion() {
+    try {
+      const value = this.storage.getItem(DIARY_KEY);
+      return value ? String(value) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  saveSeenDiaryVersion(version) {
+    try {
+      this.storage.setItem(DIARY_KEY, String(version));
+    } catch (error) {
+      console.warn("保存开发者日记进度失败", error);
+    }
   }
 
   save(state) {

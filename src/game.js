@@ -13,6 +13,7 @@ import { MovementSystem } from "./systems/movement.js";
 import { StorySystem } from "./systems/story.js";
 import { VisionSystem } from "./systems/vision.js";
 import { createDOM } from "./ui/dom.js";
+import { DevDiary } from "./ui/dev-diary.js";
 import { GameUI } from "./ui/game-ui.js";
 import { InputController } from "./ui/input.js";
 
@@ -30,6 +31,7 @@ export class DungeonGame {
     this.combat = new CombatSystem(this);
     this.story = new StorySystem(this);
     this.ui = new GameUI(this);
+    this.devDiary = new DevDiary(this);
     this.renderer = new MazeRenderer(this);
     this.maps = new MapRenderer(this);
     this.input.bindEvents();
@@ -49,6 +51,7 @@ export class DungeonGame {
     }
     this.dom.startOverlay.hidden = false;
     this.ui.setControlsEnabled(false);
+    this.devDiary.maybeShowOnLaunch();
   }
 
   startNewGame() {

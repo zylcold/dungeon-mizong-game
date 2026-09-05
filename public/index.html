@@ -101,6 +101,7 @@
       </div>
       <button class="primary-button" id="continueButton" hidden>继续探索</button>
       <button class="secondary-button" id="newGameButton">开始新游戏</button>
+      <button class="text-button diary-link" id="diaryButton" type="button">开发者日记</button>
       <p class="start-note">进度仅保存在当前浏览器</p>
     </div>
   </section>
@@ -125,6 +126,20 @@
       </div>
       <canvas id="fullMapCanvas"></canvas>
       <p class="map-tip">金色线条为本局路线；点击已探索格可自动寻路。</p>
+    </div>
+  </section>
+
+  <section class="overlay diary-overlay" id="diaryOverlay" hidden role="dialog" aria-modal="true" aria-label="开发者日记">
+    <div class="overlay-card diary-card">
+      <div class="overlay-title-row">
+        <div>
+          <span class="eyebrow">开发者日记</span>
+          <h2>更新记录</h2>
+        </div>
+        <button class="icon-button" id="diaryClose" aria-label="关闭开发者日记">×</button>
+      </div>
+      <div class="diary-list" id="diaryList"></div>
+      <p class="map-tip">每次版本更新后首次进入会自动展示；也可随时从这里回看。</p>
     </div>
   </section>
 
