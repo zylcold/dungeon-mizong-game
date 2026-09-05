@@ -10,7 +10,14 @@ export class EventSystem {
   constructor(game) {
     this.game = game;
     this.dom = game.dom;
+    this.pendingLoreKey = null;
+  }
 
+  attemptPendingLore() {
+    const loreKey = this.pendingLoreKey;
+    this.pendingLoreKey = null;
+    if (!loreKey) return false;
+    return this.game.story.tryPlayLore(loreKey);
   }
 
   triggerCurrentRoom() {
@@ -35,7 +42,7 @@ export class EventSystem {
   }
 
   resolveEvent(entity, key) {
-    this.game.story.queueFirstLore(`event:${entity.type}`);
+    this.pendingLoreKey = `event:${entity.type}`;
     const definition = EVENT_DEFS[entity.type];
     const eventDescription = this.game.story.pickCopy(EVENT_COPY[entity.type], key, `event-copy-${entity.type}`);
     if (!entity.seen) {
@@ -200,6 +207,8 @@ export class EventSystem {
       default:
         delete this.game.state.maze.entities[key];
     }
+    // 即时事件（陷阱/地图/浓雾/回声）当场结算完成，立即尝试演出；面板事件在 finishEncounter/leaveEvent 时尝试。
+    if (!this.game.state.maze.entities[key]) this.attemptPendingLore();
     this.game.ui.updateUI();
     this.game.save();
     this.game.renderer.render();
@@ -216,7 +225,7 @@ export class EventSystem {
     this.game.state.stats.chests += 1;
     if (roll < 0.76) {
       const itemType = this.game.inventory.randomItemFor(key, "chest-item");
-      this.game.inventory.addItem(itemType, 1);
+      this.game.inventory.addItem(itemType, 1, true);
       this.game.state.stats.items += 1;
       this.game.ui.addLog("item", "▣", `打开宝箱，获得「${ITEM_DEFS[itemType].name}」`);
       this.game.ui.showToast(`宝箱：${ITEM_DEFS[itemType].name}`);
@@ -242,7 +251,7 @@ export class EventSystem {
       this.game.ui.showToast(`盘根裂隙：-${damage} HP`);
     } else if (roll < 0.82) {
       const itemType = this.game.inventory.randomItemFor(key, "roots-item");
-      this.game.inventory.addItem(itemType, 1);
+      this.game.inventory.addItem(itemType, 1, true);
       this.game.state.stats.items += 1;
       this.game.ui.addLog("item", "⌁", `你在树根下面找到「${ITEM_DEFS[itemType].name}」`);
       this.game.ui.showToast(`找到 ${ITEM_DEFS[itemType].name}`);
@@ -259,7 +268,7 @@ export class EventSystem {
     delete this.game.state.maze.entities[key];
     if (roll < 0.56) {
       const itemType = this.game.inventory.randomItemFor(key, "farm-cache-item");
-      this.game.inventory.addItem(itemType, 1);
+      this.game.inventory.addItem(itemType, 1, true);
       this.game.state.stats.items += 1;
       this.game.ui.addLog("item", "◇", `旧布袋里还留着「${ITEM_DEFS[itemType].name}」`);
       this.game.ui.showToast(`找到 ${ITEM_DEFS[itemType].name}`);
@@ -300,13 +309,14 @@ export class EventSystem {
     if (roll < 0.66) {
       const itemType = this.game.inventory.randomItemFor(key, "corpse-item");
       delete this.game.state.maze.entities[key];
-      this.game.inventory.addItem(itemType, 1);
+      this.game.inventory.addItem(itemType, 1, true);
       this.game.state.stats.items += 1;
       this.game.ui.addLog("item", "☠", `搜索遗骸，找到「${ITEM_DEFS[itemType].name}」`);
       this.game.ui.showToast(`找到 ${ITEM_DEFS[itemType].name}`);
       this.finishEncounter();
       return;
     }
+    this.pendingLoreKey = null;
     const rng = mulberry32(hashString(`${this.game.state.maze.seed}:${key}:ambush`));
     const enemyType = roll > 0.9 ? "ghost" : "rat";
     const enemy = createEnemy(enemyType, rng);
@@ -353,6 +363,7 @@ export class EventSystem {
     this.game.ui.updateUI();
     this.game.save();
     this.game.renderer.render();
+    this.attemptPendingLore();
   }
 
   dismissEncounter() {
@@ -375,6 +386,7 @@ export class EventSystem {
     this.game.ui.updateUI();
     if (save) this.game.save();
     this.game.renderer.render();
+    this.attemptPendingLore();
   }
 
   openExitEncounter() {

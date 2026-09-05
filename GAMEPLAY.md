@@ -2,8 +2,6 @@
 
 本文完整描述「地下城：迷踪」的实际玩法规则，以 `src/` 实现为准，数值常量集中在 `src/config.js`。调整任何规则时，必须同步更新本文、`src/config.js` 与 `tests/smoke.test.cjs` 对应断言。
 
-> 演出间隔规则（第 8 节）描述的是 20 步 + 随机延后版本，依赖 PR #4 合入。
-
 ## 1. 核心循环
 
 单局 = 单层迷宫，无二周目。玩家在迷宫中心醒来（HP 100/100），四向探索、战斗、触发事件、收集道具；走到任一出口选择离开即生存结局，HP 归零（战斗或毒素）即坠落结局。两种结局都会播放「梦醒」叙事，随后展示完整迷宫、本局路线与统计。
@@ -93,19 +91,13 @@
 
 ## 8. 剧情演出系统
 
-**优先级队列**（`STORY_PRIORITY`）：拾取道具 100 < 随机事件 200 < 击杀怪物 300 < 血量记忆 400 < 序章 1000。冷却期触发的剧情按「优先级 → 触发步 → 入队序」排序缓存。
+**即时演出，无队列**：剧情在触发点当场尝试演出；条件不满足（间隔不足 / 同一步已演过 / 面板未关闭 / 已有未读演出）时**直接跳过并丢弃**，不排队、不缓存。被跳过的片段不标记已读，等下次同类触发（下次击败同类怪物、遇到同类事件、拾取同类道具、下次界面更新的血量检查）重新走完整判定。
 
-**触发时机**：怪物故事仅在首次击败该类怪物后；道具故事仅在物品实际入包后（使用初始物品不触发）；事件故事在首次进入结算；血量记忆在 HP 首次降至 ≤75% / ≤50% / ≤25%。同局同类只演一次（`loreSeen` / `storyScenes`）。
+**触发时机**：怪物=首次击败该类怪物后（战斗面板关闭时）；道具=物品实际入包后（使用初始物品不触发，事件结算内获得的道具延迟到面板关闭后尝试）；事件=结算完成或离开面板时（即时类事件如陷阱/地图残片/浓雾/回声在当场结算后立即尝试）；血量记忆=每次界面更新时检查 HP 首次降至 ≤75% / ≤50% / ≤25%。同局同类只演一次（`loreSeen` / `storyScenes`，仅在真正演出后标记）。
 
-**演出间隔（普通剧情）**：两次普通演出至少相隔 20 步（`NORMAL_STORY_MIN_GAP_STEPS`），且每次普通演出后会掷出 0–10 步随机延后（`normalStoryGapJitter`，随存档持久化），实际间隔 20–30 步，避免每次踩点触发。
+**演出间隔（普通剧情）**：两次普通演出至少相隔 20 步（`NORMAL_STORY_MIN_GAP_STEPS`）；同一步绝不连弹；序章/结局豁免。无队列即无优先级排序，同一步的多个触发只有第一个满足条件的演出，其余按跳过规则处理、留待各自下次触发。
 
-**豁免与守卫**：
-
-- 序章/结局（`special` 标记或 `intro-` / `ending-` 前缀）不受间隔限制，且优先于队列中所有普通剧情。
-- 同一步绝不连弹（同步守卫）；事件/战斗面板未关闭时不弹剧情（`game.pending` 守卫），结算后立即衔接。
-- 演出失败（如弹层冲突）时完整回滚步数标记与随机延后，剧情回到队列。
-
-**未读演出恢复**：当前未读演出单独持久化（`currentStory`），继续游戏恢复原文，不重新抽签、不重置冷却起点；确认「继续」后才标记完成。
+**未读演出恢复**：当前未读演出单独持久化（`currentStory`），继续游戏恢复原文，不重新抽签、不重置间隔起点；确认「继续」后才标记完成。
 
 **文本变体**：每个演出从 3–5 条候选中抽取（variants + 幻象/真实 + 段落组合 + 补齐文案），单次演出 ≤3 段，抽取种子 = 房间 + 场景 + 当前步数。
 
@@ -128,7 +120,7 @@
 
 ## 11. 数值常量速查
 
-`src/config.js`：`MAZE_SIZE 135` · `ENEMY_DENSITY 4.5%–6%` · `ENEMY_CHEST_DROP_RATE 0.28` · `POISON_DAMAGE_PER_STEP 2` · `SLIME_POISON_DURATION 3` · `VISION_DURATION 30` · `DEFAULT_VISION_RADIUS 2` · `FOG_VISION_RADIUS 1` · `VISION_ZOOM_SCALE 0.5` · `NORMAL_STORY_MIN_GAP_STEPS 20` · `NORMAL_STORY_GAP_JITTER_STEPS 10` · `STORY_COOLDOWN_STEPS 30`（仅作旧字段默认值） · `MAX_LOGS 200` · `AUTO_PATH_DELAY 95` · `EXIT_SAFE_RADIUS 2` · `EXIT_SAFE_PATH_ROOMS 4`
+`src/config.js`：`MAZE_SIZE 135` · `ENEMY_DENSITY 4.5%–6%` · `ENEMY_CHEST_DROP_RATE 0.28` · `POISON_DAMAGE_PER_STEP 2` · `SLIME_POISON_DURATION 3` · `VISION_DURATION 30` · `DEFAULT_VISION_RADIUS 2` · `FOG_VISION_RADIUS 1` · `VISION_ZOOM_SCALE 0.5` · `NORMAL_STORY_MIN_GAP_STEPS 20` · `MAX_LOGS 200` · `AUTO_PATH_DELAY 95` · `EXIT_SAFE_RADIUS 2` · `EXIT_SAFE_PATH_ROOMS 4`
 
 ## 12. 随机性约定
 
