@@ -723,6 +723,7 @@ game.state.totalSteps += 1;
 game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "达到间隔后应先播放高优先级怪物故事");
 dismissAllStories();
+assert.equal(game.state.pendingStories.length, 2);
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "关闭演出后同一步不能连续弹出下一条");
 game.state.totalSteps += 20;
