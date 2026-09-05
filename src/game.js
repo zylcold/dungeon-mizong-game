@@ -74,7 +74,7 @@ export class DungeonGame {
     this.save();
     this.renderer.render();
     this.ui.showToast("滑动探索未知区域，点击已探索区域自动寻路");
-    this.story.queueRandomStory("intro", "序章 · 醒来", OPENING_STORY, "开始探索", STORY_PRIORITY.intro);
+    this.story.queueRandomStory("intro", "序章 · 醒来", OPENING_STORY, "开始探索", STORY_PRIORITY.intro, { special: true });
     this.story.tryShowPendingStory();
   }
 

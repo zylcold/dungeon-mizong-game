@@ -1,5 +1,5 @@
 /** 创建可持久化的游戏初始状态。 */
-import { MAZE_SIZE, SAVE_VERSION, STORY_COOLDOWN_STEPS, STORY_TRIGGER_VERSION } from "../config.js";
+import { MAZE_SIZE, NORMAL_STORY_MIN_GAP_STEPS, SAVE_VERSION, STORY_COOLDOWN_STEPS, STORY_TRIGGER_VERSION } from "../config.js";
 import { generateMaze } from "../core/maze.js";
 import { mulberry32, randomSeed } from "../core/random.js";
 
@@ -29,6 +29,8 @@ export function createInitialState() {
     loreSeen: [],
     storyTriggerVersion: STORY_TRIGGER_VERSION,
     lastStoryStep: -STORY_COOLDOWN_STEPS,
+    lastNormalStoryStep: -NORMAL_STORY_MIN_GAP_STEPS,
+    normalStoryGapJitter: 0,
     pendingStories: [],
     currentStory: null,
     storySequence: 0,

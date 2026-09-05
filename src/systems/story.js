@@ -1,8 +1,14 @@
 /** 剧情优先队列、限频与未读演出恢复。 */
-import { STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
+import { NORMAL_STORY_GAP_JITTER_STEPS, NORMAL_STORY_MIN_GAP_STEPS, STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
+
+const STORY_VARIANT_FILLERS = [
+  "你停下半息，确认这段念头还在脑海里。",
+  "你把这段记忆压在心底，继续向前。"
+];
+const STORY_VARIANT_DEFAULT = "你在黑暗里停住呼吸，确认自己仍要继续向前。";
 
 export class StorySystem {
   constructor(game) {
@@ -52,20 +58,53 @@ export class StorySystem {
   }
 
   pickStoryVariant(sceneKey, story) {
+    const candidates = this.buildStoryCandidates(story);
     const playerKey = roomKey(this.game.state.player.x, this.game.state.player.y);
-    return this.game.events.eventRoll(playerKey, `story-variant-${sceneKey}`) < 0.5
-      ? { key: "illusion", text: story.illusion }
-      : { key: "reality", text: story.reality };
+    const roll = this.game.events.eventRoll(playerKey, `story-variant-${sceneKey}-${this.game.state.totalSteps}`);
+    const index = Math.min(candidates.length - 1, Math.floor(roll * candidates.length));
+    return { key: `v${index + 1}`, text: candidates[index] };
   }
 
-  queueRandomStory(sceneKey, kicker, story, buttonLabel = "继续", priority = STORY_PRIORITY.event) {
+  clipStoryParagraphs(text, maxParagraphs = 3) {
+    if (typeof text !== "string") return "";
+    const parts = text.split(/\n\s*\n/u).map((part) => part.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    return parts.slice(0, maxParagraphs).join("\n\n");
+  }
+
+  buildStoryCandidates(story) {
+    const unique = [];
+    const pushUnique = (text) => {
+      const normalized = this.clipStoryParagraphs(text);
+      if (!normalized || unique.includes(normalized)) return;
+      unique.push(normalized);
+    };
+    if (Array.isArray(story?.variants)) story.variants.forEach(pushUnique);
+    pushUnique(story?.illusion);
+    pushUnique(story?.reality);
+    if (!unique.length) return [STORY_VARIANT_DEFAULT];
+    if (story?.allowAutoVariants === false) return unique.slice(0, 5);
+    const baseA = unique[0] || "";
+    const baseB = unique[1] || baseA;
+    if (unique.length >= 2) [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
+    if (unique.length < 3) {
+      // 基底先截到两段，让 filler 成为第三段，避免三段截断后退化成重复文本而被去重丢弃。
+      const paddedBase = this.clipStoryParagraphs(baseA || STORY_VARIANT_DEFAULT, 2);
+      STORY_VARIANT_FILLERS.forEach((filler) => {
+        if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
+      });
+    }
+    return unique.slice(0, 5);
+  }
+
+  queueRandomStory(sceneKey, kicker, story, buttonLabel = "继续", priority = STORY_PRIORITY.event, options = {}) {
     const variant = this.pickStoryVariant(sceneKey, story);
     this.scheduleStory({
       id: `${sceneKey}-${variant.key}`,
       kicker,
       text: variant.text,
       buttonLabel
-    }, priority);
+    }, priority, options);
   }
 
   queueFirstLore(loreKey) {
@@ -88,7 +127,7 @@ export class StorySystem {
     return true;
   }
 
-  scheduleStory(scene, priority) {
+  scheduleStory(scene, priority, options = {}) {
     if (!this.game.state || !this.game.state.active) return false;
     this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
     if (this.game.state.pendingStories.some((entry) => entry.scene.id === scene.id)) return false;
@@ -97,7 +136,8 @@ export class StorySystem {
       scene,
       priority,
       triggerStep: this.game.state.totalSteps,
-      order: this.game.state.storySequence
+      order: this.game.state.storySequence,
+      special: Boolean(options.special)
     });
     this.game.state.storySequence += 1;
     this.game.save();
@@ -105,22 +145,42 @@ export class StorySystem {
   }
 
   tryShowPendingStory() {
-    if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden) return false;
-    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗 30 步演出额度。
+    if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
+    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗普通演出间隔额度。
     if (this.game.state.currentStory) return this.showStory(this.game.state.currentStory);
     this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
     if (!this.game.state.pendingStories.length) return false;
-    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
-    if (this.game.state.totalSteps - lastStep < STORY_COOLDOWN_STEPS) return false;
     this.game.state.pendingStories.sort((a, b) => (
       b.priority - a.priority || a.triggerStep - b.triggerStep || a.order - b.order
     ));
-    const entry = this.game.state.pendingStories.shift();
+    const specialIndex = this.game.state.pendingStories.findIndex((entry) => (
+      entry.special || /^intro-|^ending-/u.test(entry.scene.id)
+    ));
+    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
+    const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
+      ? this.game.state.lastNormalStoryStep
+      : -NORMAL_STORY_MIN_GAP_STEPS;
+    const gapJitter = Number.isFinite(this.game.state.normalStoryGapJitter) ? this.game.state.normalStoryGapJitter : 0;
+    if (this.game.state.totalSteps === lastStep) return false;
+    // 普通演出间隔 = 最小 20 步 + 每次演出后掷出的 0-10 步随机延后，避免每次踩点触发。
+    if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS + gapJitter) return false;
+    const entry = specialIndex >= 0
+      ? this.game.state.pendingStories.splice(specialIndex, 1)[0]
+      : this.game.state.pendingStories.shift();
     this.game.state.lastStoryStep = this.game.state.totalSteps;
+    if (!(entry.special || /^intro-|^ending-/u.test(entry.scene.id))) {
+      this.game.state.lastNormalStoryStep = this.game.state.totalSteps;
+      const jitterKey = roomKey(this.game.state.player.x, this.game.state.player.y);
+      this.game.state.normalStoryGapJitter = Math.floor(
+        this.game.events.eventRoll(jitterKey, `story-gap-${this.game.state.totalSteps}`) * (NORMAL_STORY_GAP_JITTER_STEPS + 1)
+      );
+    }
     const shown = this.showStory(entry.scene);
     if (!shown) {
       this.game.state.pendingStories.unshift(entry);
       this.game.state.lastStoryStep = lastStep;
+      this.game.state.lastNormalStoryStep = lastNormalStep;
+      this.game.state.normalStoryGapJitter = gapJitter;
       return false;
     }
     this.game.save();
