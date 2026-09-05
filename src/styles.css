@@ -953,3 +953,91 @@ button:focus-visible,
     animation-duration: 0.01ms !important;
   }
 }
+
+/* 开发者日记 */
+
+.diary-link {
+  display: block;
+  margin: 12px auto 0;
+  color: var(--muted);
+}
+
+.diary-list {
+  max-height: 56vh;
+  overflow-y: auto;
+}
+
+.diary-entry {
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.diary-entry + .diary-entry {
+  margin-top: 12px;
+}
+
+.diary-entry-head {
+  margin-bottom: 10px;
+}
+
+.diary-entry-meta {
+  display: flex;
+  align-items: baseline;
+}
+
+.diary-version {
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.diary-date {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.diary-entry-head h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+}
+
+.diary-entry ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diary-item {
+  display: flex;
+  align-items: baseline;
+  margin-top: 8px;
+  color: #cfd3da;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.diary-kind {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.diary-item-new .diary-kind {
+  color: var(--cyan);
+  border: 1px solid rgba(97, 217, 242, 0.45);
+}
+
+.diary-item-improve .diary-kind {
+  color: var(--gold);
+  border: 1px solid rgba(216, 174, 91, 0.45);
+}
+
+.diary-item-fix .diary-kind {
+  color: var(--danger);
+  border: 1px solid rgba(239, 88, 88, 0.45);
+}

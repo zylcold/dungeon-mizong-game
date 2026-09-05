@@ -5,6 +5,10 @@ export const STORAGE_KEY = "dungeon-mizong-save-v1";
 
 export const RECORD_KEY = "dungeon-mizong-records-v1";
 
+export const DIARY_KEY = "dungeon-mizong-diary-v1";
+
+export const APP_VERSION = "1.12.0";
+
 export const SAVE_VERSION = 4;
 
 export const STORY_TRIGGER_VERSION = 3;

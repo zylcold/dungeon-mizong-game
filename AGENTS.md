@@ -7,6 +7,7 @@
 - `public/index.html`、`src/styles.css`：界面结构、布局和安全区。
 - `src/main.js`、`src/game.js`：启动、生命周期及系统组合。
 - `src/core/`、`src/data/`：无 DOM 的规则计算与静态文案数据。
+- `src/data/dev-diary.js`、`src/ui/dev-diary.js`：开发者日记数据与展示；每次发版在日记最前追加条目。
 - `src/state/`：状态初始化、迁移和可注入存储适配。
 - `src/systems/`：移动、视野、事件、背包、战斗和剧情业务流程。
 - `src/rendering/`、`src/ui/`：地图渲染、输入、HUD、弹层；瞬态字段由对应模块持有。
@@ -46,6 +47,8 @@
 ## 存档与改动范围
 
 进度键为 `dungeon-mizong-save-v1`，个人纪录键为 `dungeon-mizong-records-v1`。修改状态结构前检查 `SAVE_VERSION`、`STORY_TRIGGER_VERSION` 及载入迁移逻辑，不要通过随意改键或清空全部 localStorage 规避兼容性问题。
+
+游戏内版本号唯一来源是 `src/config.js` 的 `APP_VERSION`；发版时同步 package.json、`APP_VERSION` 与 `src/data/dev-diary.js` 首条，测试会校验一致。开发者日记已读进度存 `DIARY_KEY`（`dungeon-mizong-diary-v1`），与存档、纪录键互不影响。
 
 围绕任务做最小修改，保留用户未提交的变更。不要仅因文件较长就重写游戏架构；新增玩法与故事规则需要对应需求。运行资源改动后同步测试、README 和版本记录；纯维护文档调整不需要提高游戏版本。
 

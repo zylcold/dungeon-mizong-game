@@ -78,6 +78,11 @@ export class InputController {
     this.dom.encounterClose.addEventListener("click", () => this.game.events.dismissEncounter());
     this.dom.continueButton.addEventListener("click", () => this.game.continueGame());
     this.dom.newGameButton.addEventListener("click", () => this.game.startNewGame());
+    this.dom.diaryButton.addEventListener("click", () => this.game.devDiary.show());
+    this.dom.diaryClose.addEventListener("click", () => this.game.devDiary.close());
+    this.dom.diaryOverlay.addEventListener("click", (event) => {
+      if (event.target === this.dom.diaryOverlay) this.game.devDiary.close();
+    });
     this.dom.endRestartButton.addEventListener("click", () => this.game.startNewGame());
     this.dom.storyContinueButton.addEventListener("click", () => this.game.story.hideStory());
     this.dom.restartButton.addEventListener("click", () => {
