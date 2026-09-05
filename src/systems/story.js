@@ -4,6 +4,11 @@ import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
 
+const STORY_VARIANT_FILLERS = [
+  "你停下半息，确认这段念头还在脑海里。",
+  "你把这段记忆压在心底，继续向前。"
+];
+
 export class StorySystem {
   constructor(game) {
     this.game = game;
@@ -82,8 +87,8 @@ export class StorySystem {
     const baseB = unique[1] || baseA;
     [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
     if (unique.length < 3 && baseA) {
-      pushUnique(`${baseA}\n\n你停下半息，确认这段念头还在脑海里。`);
-      pushUnique("你把这段记忆压在心底，继续向前。");
+      pushUnique(`${baseA}\n\n${STORY_VARIANT_FILLERS[0]}`);
+      pushUnique(STORY_VARIANT_FILLERS[1]);
     }
     return unique.slice(0, 5);
   }
@@ -151,6 +156,7 @@ export class StorySystem {
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
+    if (this.game.state.totalSteps === lastStep) return false;
     if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     const entry = specialIndex >= 0
       ? this.game.state.pendingStories.splice(specialIndex, 1)[0]
