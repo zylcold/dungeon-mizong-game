@@ -82,7 +82,7 @@ export class StorySystem {
     [
       `${baseA} 你咬紧牙关，把注意力拉回脚下的路。`,
       `${baseB} 你按住伤口，提醒自己先活着走出去。`,
-      `${baseA} ${baseB}`
+      `${baseA}\n\n${baseB}`
     ].forEach(pushUnique);
     return unique.slice(0, 5);
   }
