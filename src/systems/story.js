@@ -77,13 +77,11 @@ export class StorySystem {
     if (Array.isArray(story?.variants)) story.variants.forEach(pushUnique);
     pushUnique(story?.illusion);
     pushUnique(story?.reality);
-    const baseA = unique[0] || "暗影在你脚边蠕动，你只能先向前。";
+    if (story?.allowAutoVariants === false) return unique.slice(0, 5);
+    const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
-    [
-      `${baseA} 你咬紧牙关，把注意力拉回脚下的路。`,
-      `${baseB} 你按住伤口，提醒自己先活着走出去。`,
-      `${baseA}\n\n${baseB}`
-    ].forEach(pushUnique);
+    [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
+    if (unique.length < 3 && baseA) pushUnique(baseA);
     return unique.slice(0, 5);
   }
 
@@ -144,7 +142,7 @@ export class StorySystem {
     this.game.state.pendingStories.sort((a, b) => (
       b.priority - a.priority || a.triggerStep - b.triggerStep || a.order - b.order
     ));
-    const syncIndex = this.game.state.pendingStories.findIndex((entry) => entry.sync && entry.triggerStep === this.game.state.totalSteps);
+    const syncIndex = this.game.state.pendingStories.findIndex((entry) => entry.sync);
     const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
     if (syncIndex < 0 && this.game.state.totalSteps - lastStep < STORY_COOLDOWN_STEPS) return false;
     const entry = syncIndex >= 0

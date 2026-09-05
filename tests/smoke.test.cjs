@@ -699,7 +699,7 @@ assert.equal(elements.storyOverlay.hidden, false, "完成事件后应立即衔�
 dismissAllStories();
 game.events.eventRoll = originalEventRoll;
 
-// 冷却期内的剧情按优先级缓存；每满 30 步只弹一条，关闭后同一步绝不连弹。
+// 事件剧情可同步衔接；其余剧情继续按 30 步冷却与优先级依次播放。
 game.state.pendingStories = [];
 game.state.lastStoryStep = game.state.totalSteps;
 for (const loreKey of ["item:vision", "event:fountain", "enemy:skeleton"]) {
@@ -710,23 +710,20 @@ assert.equal(game.state.pendingStories.length, 3);
 assert.equal(elements.storyOverlay.hidden, true);
 game.state.totalSteps += 29;
 game.ui.updateUI();
-assert.equal(elements.storyOverlay.hidden, true, "未满 30 步不能播放缓存剧情");
-game.state.totalSteps += 1;
-game.ui.updateUI();
-assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "同批剧情应优先播放怪物击杀故事");
+assert.ok(elements.storyKicker.textContent.includes("生命泉"), "事件剧情应在触发后优先同步演出");
 dismissAllStories();
 assert.equal(game.state.pendingStories.length, 2);
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "关闭演出后同一步不能连续弹出下一条");
 game.state.totalSteps += 30;
 game.ui.updateUI();
-assert.ok(elements.storyKicker.textContent.includes("生命泉"), "第二个周期应播放事件故事");
+assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "冷却结束后应先播放高优先级怪物故事");
 dismissAllStories();
 game.ui.updateUI();
-assert.equal(elements.storyOverlay.hidden, true, "事件故事关闭后仍需重新累计 30 步");
+assert.equal(elements.storyOverlay.hidden, true, "怪物故事关闭后仍需重新累计 30 步");
 game.state.totalSteps += 30;
 game.ui.updateUI();
-assert.ok(elements.storyKicker.textContent.includes("视野拓宽"), "第三个周期才播放低优先级道具故事");
+assert.ok(elements.storyKicker.textContent.includes("视野拓宽"), "最后播放低优先级道具故事");
 dismissAllStories();
 assert.equal(game.state.pendingStories.length, 0);
 const cooldownSave = JSON.parse(localStorage.getItem("dungeon-mizong-save-v1"));
