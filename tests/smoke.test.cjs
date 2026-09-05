@@ -212,6 +212,12 @@ assert.ok(elements.storyKicker.textContent.includes("序章"));
 assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
 assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
 assert.ok(elements.storyText.textContent.length > 60);
+assert.ok(elements.storyText.textContent.split(/\n\s*\n/u).filter(Boolean).length <= 3, "单次演出文本不应超过三段");
+const openingCandidates = game.story.buildStoryCandidates({
+  illusion: "幻象在你眼前晃动。",
+  reality: "你听见山风从耳边穿过。"
+});
+assert.ok(openingCandidates.length >= 3 && openingCandidates.length <= 5, "同一演出应存在 3-5 条候选文本");
 elements.storyContinueButton.listeners.click[0]();
 assert.equal(elements.storyOverlay.hidden, true, "开场每局只播放随机选中的一段故事");
 assert.equal(rootStyleValues["--app-safe-area-top"], "96px", "移动端应同时避让状态栏与宿主导航工具栏");
@@ -676,7 +682,7 @@ game.combat.fightEnemy(false);
 assert.equal(elements.storyOverlay.hidden, true, "同类怪物第二次被击败后不应重复故事");
 game.events.eventRoll = timingEventRoll;
 
-// 击败怪物后按概率在原地生成可立即开启的宝箱。
+// 击败怪物后按概率在原地生成可立即开启的宝箱；事件触发后演出应同步衔接。
 const originalEventRoll = game.events.eventRoll;
 game.events.eventRoll = () => 0;
 const dropKey = key(game.state.player.x, game.state.player.y);
@@ -685,10 +691,11 @@ game.state.maze.entities[dropKey] = dropEnemy;
 game.pending = { type: "enemy", enemy: dropEnemy, target: { ...game.state.player }, key: dropKey, surprise: true };
 game.combat.fightEnemy(false);
 assert.equal(game.state.maze.entities[dropKey].type, "chest");
-assert.equal(elements.storyOverlay.hidden, true, "击杀故事后的掉落宝箱剧情应受 30 步冷却限制");
-assert.ok(game.state.pendingStories.some((entry) => entry.scene.id.startsWith("lore-event-chest-")), "冷却中的宝箱剧情应保留在队列");
+assert.equal(elements.storyOverlay.hidden, true, "事件面板未结束前不应打断当前交互");
+assert.ok(game.state.pendingStories.some((entry) => entry.scene.id.startsWith("lore-event-chest-")), "事件触发时应先记录待播故事");
 assert.equal(game.pending.type, "event", "掉落宝箱应立即进入开启事件");
 game.events.openChest(dropKey);
+assert.equal(elements.storyOverlay.hidden, false, "完成事件后应立即衔接对应故事演出");
 dismissAllStories();
 game.events.eventRoll = originalEventRoll;
 

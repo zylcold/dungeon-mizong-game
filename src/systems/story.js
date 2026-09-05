@@ -52,20 +52,49 @@ export class StorySystem {
   }
 
   pickStoryVariant(sceneKey, story) {
+    const candidates = this.buildStoryCandidates(story);
+    if (!candidates.length) return { key: "fallback", text: "" };
     const playerKey = roomKey(this.game.state.player.x, this.game.state.player.y);
-    return this.game.events.eventRoll(playerKey, `story-variant-${sceneKey}`) < 0.5
-      ? { key: "illusion", text: story.illusion }
-      : { key: "reality", text: story.reality };
+    const roll = this.game.events.eventRoll(playerKey, `story-variant-${sceneKey}-${this.game.state.totalSteps}`);
+    const index = Math.min(candidates.length - 1, Math.floor(roll * candidates.length));
+    return { key: `v${index + 1}`, text: candidates[index] };
   }
 
-  queueRandomStory(sceneKey, kicker, story, buttonLabel = "继续", priority = STORY_PRIORITY.event) {
+  clipStoryParagraphs(text, maxParagraphs = 3) {
+    if (typeof text !== "string") return "";
+    const parts = text.split(/\n\s*\n/u).map((part) => part.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    return parts.slice(0, maxParagraphs).join("\n\n");
+  }
+
+  buildStoryCandidates(story) {
+    const unique = [];
+    const pushUnique = (text) => {
+      const normalized = this.clipStoryParagraphs(text);
+      if (!normalized || unique.includes(normalized)) return;
+      unique.push(normalized);
+    };
+    if (Array.isArray(story?.variants)) story.variants.forEach(pushUnique);
+    pushUnique(story?.illusion);
+    pushUnique(story?.reality);
+    const baseA = unique[0] || "暗影在你脚边蠕动，你只能先向前。";
+    const baseB = unique[1] || baseA;
+    [
+      `${baseA} 你咬紧牙关，把注意力拉回脚下的路。`,
+      `${baseB} 你按住伤口，提醒自己先活着走出去。`,
+      `${baseA} ${baseB}`
+    ].forEach(pushUnique);
+    return unique.slice(0, 5);
+  }
+
+  queueRandomStory(sceneKey, kicker, story, buttonLabel = "继续", priority = STORY_PRIORITY.event, options = {}) {
     const variant = this.pickStoryVariant(sceneKey, story);
     this.scheduleStory({
       id: `${sceneKey}-${variant.key}`,
       kicker,
       text: variant.text,
       buttonLabel
-    }, priority);
+    }, priority, options);
   }
 
   queueFirstLore(loreKey) {
@@ -82,13 +111,14 @@ export class StorySystem {
       `残缺片段 · ${lore.title}`,
       lore,
       "继续",
-      STORY_PRIORITY[category] || STORY_PRIORITY.item
+      STORY_PRIORITY[category] || STORY_PRIORITY.item,
+      { sync: category === "event" }
     );
     this.game.save();
     return true;
   }
 
-  scheduleStory(scene, priority) {
+  scheduleStory(scene, priority, options = {}) {
     if (!this.game.state || !this.game.state.active) return false;
     this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
     if (this.game.state.pendingStories.some((entry) => entry.scene.id === scene.id)) return false;
@@ -97,7 +127,8 @@ export class StorySystem {
       scene,
       priority,
       triggerStep: this.game.state.totalSteps,
-      order: this.game.state.storySequence
+      order: this.game.state.storySequence,
+      sync: Boolean(options.sync)
     });
     this.game.state.storySequence += 1;
     this.game.save();
@@ -105,17 +136,20 @@ export class StorySystem {
   }
 
   tryShowPendingStory() {
-    if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden) return false;
+    if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
     // 恢复的是同一次未读演出，不重新抽签，也不重新消耗 30 步演出额度。
     if (this.game.state.currentStory) return this.showStory(this.game.state.currentStory);
     this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
     if (!this.game.state.pendingStories.length) return false;
-    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
-    if (this.game.state.totalSteps - lastStep < STORY_COOLDOWN_STEPS) return false;
     this.game.state.pendingStories.sort((a, b) => (
       b.priority - a.priority || a.triggerStep - b.triggerStep || a.order - b.order
     ));
-    const entry = this.game.state.pendingStories.shift();
+    const syncIndex = this.game.state.pendingStories.findIndex((entry) => entry.sync && entry.triggerStep === this.game.state.totalSteps);
+    const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
+    if (syncIndex < 0 && this.game.state.totalSteps - lastStep < STORY_COOLDOWN_STEPS) return false;
+    const entry = syncIndex >= 0
+      ? this.game.state.pendingStories.splice(syncIndex, 1)[0]
+      : this.game.state.pendingStories.shift();
     this.game.state.lastStoryStep = this.game.state.totalSteps;
     const shown = this.showStory(entry.scene);
     if (!shown) {
