@@ -15,6 +15,8 @@ export const STORY_TRIGGER_VERSION = 3;
 
 export const STORY_COOLDOWN_STEPS = 30;
 
+export const NORMAL_STORY_MIN_GAP_STEPS = 20;
+
 export const STORY_PRIORITY = {
   item: 100,
   event: 200,

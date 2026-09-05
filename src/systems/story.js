@@ -1,5 +1,5 @@
 /** 剧情优先队列、限频与未读演出恢复。 */
-import { STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
+import { NORMAL_STORY_MIN_GAP_STEPS, STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
@@ -112,8 +112,7 @@ export class StorySystem {
       `残缺片段 · ${lore.title}`,
       lore,
       "继续",
-      STORY_PRIORITY[category] || STORY_PRIORITY.item,
-      { sync: category === "event" }
+      STORY_PRIORITY[category] || STORY_PRIORITY.item
     );
     this.game.save();
     return true;
@@ -129,7 +128,7 @@ export class StorySystem {
       priority,
       triggerStep: this.game.state.totalSteps,
       order: this.game.state.storySequence,
-      sync: Boolean(options.sync)
+      special: Boolean(options.special)
     });
     this.game.state.storySequence += 1;
     this.game.save();
@@ -145,17 +144,26 @@ export class StorySystem {
     this.game.state.pendingStories.sort((a, b) => (
       b.priority - a.priority || a.triggerStep - b.triggerStep || a.order - b.order
     ));
-    const syncIndex = this.game.state.pendingStories.findIndex((entry) => entry.sync);
+    const specialIndex = this.game.state.pendingStories.findIndex((entry) => (
+      entry.special || /^intro-|^ending-/u.test(entry.scene.id)
+    ));
     const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -STORY_COOLDOWN_STEPS;
-    if (syncIndex < 0 && this.game.state.totalSteps - lastStep < STORY_COOLDOWN_STEPS) return false;
-    const entry = syncIndex >= 0
-      ? this.game.state.pendingStories.splice(syncIndex, 1)[0]
+    const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
+      ? this.game.state.lastNormalStoryStep
+      : -NORMAL_STORY_MIN_GAP_STEPS;
+    if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
+    const entry = specialIndex >= 0
+      ? this.game.state.pendingStories.splice(specialIndex, 1)[0]
       : this.game.state.pendingStories.shift();
     this.game.state.lastStoryStep = this.game.state.totalSteps;
+    if (!(entry.special || /^intro-|^ending-/u.test(entry.scene.id))) {
+      this.game.state.lastNormalStoryStep = this.game.state.totalSteps;
+    }
     const shown = this.showStory(entry.scene);
     if (!shown) {
       this.game.state.pendingStories.unshift(entry);
       this.game.state.lastStoryStep = lastStep;
+      this.game.state.lastNormalStoryStep = lastNormalStep;
       return false;
     }
     this.game.save();

@@ -417,9 +417,10 @@ function walkTo(target, maxMoves = 800) {
 // 21 类内容均随机选择一条故事线，每次只演出一段，并在本局内去重。
 for (const loreKey of loreKeys) {
   game.state.lastStoryStep = game.state.totalSteps - 30;
+  game.state.lastNormalStoryStep = game.state.totalSteps - 20;
   assert.equal(game.story.queueFirstLore(loreKey), true, `${loreKey} 应能触发首次故事`);
   assert.equal(elements.storyOverlay.hidden, true, "剧情应先进入调度队列，而不是在触发函数内立即弹出");
-  assert.equal(game.story.tryShowPendingStory(), true, "满足 30 步间隔后应播放一条待处理剧情");
+  assert.equal(game.story.tryShowPendingStory(), true, "满足普通演出步数间隔后应播放一条待处理剧情");
   assert.ok(elements.storyKicker.textContent.includes("残缺片段"));
   assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
   assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
@@ -501,6 +502,7 @@ assert.equal(minimapStrokeStyles.includes("rgba(190, 73, 79, 0.98)"), false, "�
 for (const hp of [74, 49, 24]) {
   game.state.hp = hp;
   game.state.lastStoryStep = game.state.totalSteps - 30;
+  game.state.lastNormalStoryStep = game.state.totalSteps - 20;
   game.ui.updateUI();
   assert.equal(elements.storyOverlay.hidden, false);
   assert.ok(elements.storyKicker.textContent.includes("记忆残片"));
@@ -570,6 +572,7 @@ assert.ok(Object.values(game.state.maze.entities).some((entity) => entity.kind =
 const newEventKey = key(game.state.player.x, game.state.player.y);
 game.state.maze.entities[newEventKey] = { kind: "event", type: "roots" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
 game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 assert.equal(elements.storyOverlay.hidden, true, "事件面板未结束前不应抢占演出");
 assert.ok(elements.encounterDescription.textContent.length > 12);
@@ -588,6 +591,7 @@ game.events.leaveEvent(newEventKey);
 delete game.state.maze.entities[newEventKey];
 game.state.maze.entities[newEventKey] = { kind: "event", type: "cache" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
 game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 dismissAllStories();
 assert.ok(elements.encounterDescription.textContent.length > 12);
@@ -596,6 +600,7 @@ dismissAllStories();
 assert.equal(game.state.maze.entities[newEventKey], undefined);
 game.state.maze.entities[newEventKey] = { kind: "event", type: "echo" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
 game.events.resolveEvent(game.state.maze.entities[newEventKey], newEventKey);
 dismissAllStories();
 assert.equal(game.state.maze.entities[newEventKey], undefined);
@@ -613,6 +618,7 @@ const pickupKey = key(game.state.player.x, game.state.player.y);
 game.state.inventory.potion = 0;
 game.state.maze.entities[pickupKey] = { kind: "pickup", itemType: "potion" };
 game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
 game.inventory.collectPickup(game.state.maze.entities[pickupKey], pickupKey);
 assert.equal(game.state.inventory.potion, 1, "物品应先进入背包");
 assert.equal(elements.storyOverlay.hidden, true, "拾取故事应先排队，不阻断拾取结算");
@@ -663,6 +669,7 @@ const timingEventRoll = game.events.eventRoll;
 game.events.eventRoll = () => 0.5;
 game.state.maze.entities[loreEnemyKey] = loreEnemy;
 game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
 game.combat.openEnemyEncounter(loreEnemy, { ...game.state.player }, loreEnemyKey, true);
 assert.equal(game.pending.type, "enemy", "发现怪物后应立即打开战斗");
 assert.equal(elements.storyOverlay.hidden, true, "开始战斗前不应播放怪物故事");
@@ -682,7 +689,7 @@ game.combat.fightEnemy(false);
 assert.equal(elements.storyOverlay.hidden, true, "同类怪物第二次被击败后不应重复故事");
 game.events.eventRoll = timingEventRoll;
 
-// 击败怪物后按概率在原地生成可立即开启的宝箱；事件触发后演出应同步衔接。
+// 击败怪物后按概率在原地生成可立即开启的宝箱；普通事件剧情受最小步数间隔限制。
 const originalEventRoll = game.events.eventRoll;
 game.events.eventRoll = () => 0;
 const dropKey = key(game.state.player.x, game.state.player.y);
@@ -695,33 +702,36 @@ assert.equal(elements.storyOverlay.hidden, true, "事件面板未结束前不应
 assert.ok(game.state.pendingStories.some((entry) => entry.scene.id.startsWith("lore-event-chest-")), "事件触发时应先记录待播故事");
 assert.equal(game.pending.type, "event", "掉落宝箱应立即进入开启事件");
 game.events.openChest(dropKey);
-assert.equal(elements.storyOverlay.hidden, false, "完成事件后应立即衔接对应故事演出");
-dismissAllStories();
+assert.equal(elements.storyOverlay.hidden, true, "普通事件剧情在 20 步内应顺延");
+assert.ok(game.state.pendingStories.some((entry) => entry.scene.id.startsWith("lore-event-chest-")), "顺延时剧情应保留在队列");
 game.events.eventRoll = originalEventRoll;
 
-// 事件剧情可同步衔接；其余剧情继续按 30 步冷却与优先级依次播放。
+// 普通剧情按优先级缓存；两次普通演出至少相隔 20 步，关闭后同一步绝不连弹。
 game.state.pendingStories = [];
 game.state.lastStoryStep = game.state.totalSteps;
+game.state.lastNormalStoryStep = game.state.totalSteps;
 for (const loreKey of ["item:vision", "event:fountain", "enemy:skeleton"]) {
   game.state.loreSeen = game.state.loreSeen.filter((seenKey) => seenKey !== loreKey);
   assert.equal(game.story.queueFirstLore(loreKey), true);
 }
 assert.equal(game.state.pendingStories.length, 3);
 assert.equal(elements.storyOverlay.hidden, true);
-game.state.totalSteps += 29;
+game.state.totalSteps += 19;
 game.ui.updateUI();
-assert.ok(elements.storyKicker.textContent.includes("生命泉"), "事件剧情应在触发后优先同步演出");
+assert.equal(elements.storyOverlay.hidden, true, "未满 20 步不能播放缓存剧情");
+game.state.totalSteps += 1;
+game.ui.updateUI();
+assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "达到间隔后应先播放高优先级怪物故事");
 dismissAllStories();
-assert.equal(game.state.pendingStories.length, 2);
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "关闭演出后同一步不能连续弹出下一条");
-game.state.totalSteps += 30;
+game.state.totalSteps += 20;
 game.ui.updateUI();
-assert.ok(elements.storyKicker.textContent.includes("骷髅守卫"), "冷却结束后应先播放高优先级怪物故事");
+assert.ok(elements.storyKicker.textContent.includes("生命泉"), "下一次触发应播放次高优先级事件故事");
 dismissAllStories();
 game.ui.updateUI();
-assert.equal(elements.storyOverlay.hidden, true, "怪物故事关闭后仍需重新累计 30 步");
-game.state.totalSteps += 30;
+assert.equal(elements.storyOverlay.hidden, true, "事件故事关闭后仍需重新累计 20 步");
+game.state.totalSteps += 20;
 game.ui.updateUI();
 assert.ok(elements.storyKicker.textContent.includes("视野拓宽"), "最后播放低优先级道具故事");
 dismissAllStories();
@@ -836,7 +846,7 @@ assert.ok(game.state.storyScenes.includes(introSnapshot.id));
 assert.equal(JSON.parse(localStorage.getItem("dungeon-mizong-save-v1")).currentStory, null, "确认完成后应立即更新存档");
 game.continueGame();
 assert.equal(elements.storyOverlay.hidden, true, "已读开场不应重播，待播物品仍遵守冷却");
-game.state.totalSteps = 30;
+game.state.totalSteps = 20;
 game.ui.updateUI();
 const itemSnapshot = JSON.parse(JSON.stringify(game.state.currentStory));
 assert.ok(itemSnapshot.id.startsWith("lore-item-potion-"));
@@ -846,7 +856,7 @@ for (let restore = 0; restore < 2; restore += 1) {
   assert.equal(elements.storyText.textContent, itemSnapshot.text);
   assert.equal(game.state.currentStory.id, itemSnapshot.id, "当前未读片段优先于队列中更高优先级的片段");
   assert.equal(game.state.storyScenes.includes(itemSnapshot.id), false);
-  assert.equal(game.state.lastStoryStep, 30, "恢复未读片段不能重置冷却起点");
+  assert.equal(game.state.lastStoryStep, 20, "恢复未读片段不能重置冷却起点");
   assert.equal(game.state.pendingStories.length, 1);
 }
 dismissAllStories();
