@@ -1,5 +1,11 @@
 # 版本记录
 
+## 仓库维护（v1.11.0 后）
+
+- 修正发布脚本对 `RELEASE_TAG` 前缀的归一化处理，Release 标签带不带 `v` 前缀均可通过校验（PR #1）。
+- 补充 MIT LICENSE，并在素材说明中记录 `app-icon-v2.png`。
+- 以上为仓库与文档维护，未修改游戏运行逻辑，不提升游戏版本。
+
 ## 1.11.0
 
 - 按 core、data、state、systems、rendering、ui 拆分源码，保留原有游戏规则、剧情和存档格式。
