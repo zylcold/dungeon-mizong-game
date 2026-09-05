@@ -88,7 +88,7 @@ export class StorySystem {
     [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
     if (unique.length < 3 && baseA) {
       pushUnique(`${baseA}\n\n${STORY_VARIANT_FILLERS[0]}`);
-      pushUnique(STORY_VARIANT_FILLERS[1]);
+      pushUnique(`${baseA}\n\n${STORY_VARIANT_FILLERS[1]}`);
     }
     return unique.slice(0, 5);
   }
