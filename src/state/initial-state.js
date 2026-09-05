@@ -30,6 +30,7 @@ export function createInitialState() {
     storyTriggerVersion: STORY_TRIGGER_VERSION,
     lastStoryStep: -STORY_COOLDOWN_STEPS,
     lastNormalStoryStep: -NORMAL_STORY_MIN_GAP_STEPS,
+    normalStoryGapJitter: 0,
     pendingStories: [],
     currentStory: null,
     storySequence: 0,

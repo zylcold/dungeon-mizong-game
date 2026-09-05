@@ -1,5 +1,5 @@
 /** 剧情优先队列、限频与未读演出恢复。 */
-import { NORMAL_STORY_MIN_GAP_STEPS, STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
+import { NORMAL_STORY_GAP_JITTER_STEPS, NORMAL_STORY_MIN_GAP_STEPS, STORY_COOLDOWN_STEPS, STORY_PRIORITY } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
@@ -59,7 +59,6 @@ export class StorySystem {
 
   pickStoryVariant(sceneKey, story) {
     const candidates = this.buildStoryCandidates(story);
-    if (!candidates.length) return { key: "fallback", text: "" };
     const playerKey = roomKey(this.game.state.player.x, this.game.state.player.y);
     const roll = this.game.events.eventRoll(playerKey, `story-variant-${sceneKey}-${this.game.state.totalSteps}`);
     const index = Math.min(candidates.length - 1, Math.floor(roll * candidates.length));
@@ -89,7 +88,8 @@ export class StorySystem {
     const baseB = unique[1] || baseA;
     if (unique.length >= 2) [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
     if (unique.length < 3) {
-      const paddedBase = baseA || STORY_VARIANT_DEFAULT;
+      // 基底先截到两段，让 filler 成为第三段，避免三段截断后退化成重复文本而被去重丢弃。
+      const paddedBase = this.clipStoryParagraphs(baseA || STORY_VARIANT_DEFAULT, 2);
       STORY_VARIANT_FILLERS.forEach((filler) => {
         if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
       });
@@ -146,7 +146,7 @@ export class StorySystem {
 
   tryShowPendingStory() {
     if (!this.game.state || !this.game.state.active || !this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
-    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗 30 步演出额度。
+    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗普通演出间隔额度。
     if (this.game.state.currentStory) return this.showStory(this.game.state.currentStory);
     this.game.state.pendingStories = Array.isArray(this.game.state.pendingStories) ? this.game.state.pendingStories : [];
     if (!this.game.state.pendingStories.length) return false;
@@ -160,20 +160,27 @@ export class StorySystem {
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
+    const gapJitter = Number.isFinite(this.game.state.normalStoryGapJitter) ? this.game.state.normalStoryGapJitter : 0;
     if (this.game.state.totalSteps === lastStep) return false;
-    if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
+    // 普通演出间隔 = 最小 20 步 + 每次演出后掷出的 0-10 步随机延后，避免每次踩点触发。
+    if (specialIndex < 0 && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS + gapJitter) return false;
     const entry = specialIndex >= 0
       ? this.game.state.pendingStories.splice(specialIndex, 1)[0]
       : this.game.state.pendingStories.shift();
     this.game.state.lastStoryStep = this.game.state.totalSteps;
     if (!(entry.special || /^intro-|^ending-/u.test(entry.scene.id))) {
       this.game.state.lastNormalStoryStep = this.game.state.totalSteps;
+      const jitterKey = roomKey(this.game.state.player.x, this.game.state.player.y);
+      this.game.state.normalStoryGapJitter = Math.floor(
+        this.game.events.eventRoll(jitterKey, `story-gap-${this.game.state.totalSteps}`) * (NORMAL_STORY_GAP_JITTER_STEPS + 1)
+      );
     }
     const shown = this.showStory(entry.scene);
     if (!shown) {
       this.game.state.pendingStories.unshift(entry);
       this.game.state.lastStoryStep = lastStep;
       this.game.state.lastNormalStoryStep = lastNormalStep;
+      this.game.state.normalStoryGapJitter = gapJitter;
       return false;
     }
     this.game.save();
