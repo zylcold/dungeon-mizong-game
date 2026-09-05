@@ -8,6 +8,7 @@ const STORY_VARIANT_FILLERS = [
   "你停下半息，确认这段念头还在脑海里。",
   "你把这段记忆压在心底，继续向前。"
 ];
+const STORY_VARIANT_DEFAULT = "你在黑暗里停住呼吸，确认自己仍要继续向前。";
 
 export class StorySystem {
   constructor(game) {
@@ -82,6 +83,7 @@ export class StorySystem {
     if (Array.isArray(story?.variants)) story.variants.forEach(pushUnique);
     pushUnique(story?.illusion);
     pushUnique(story?.reality);
+    if (!unique.length) return [STORY_VARIANT_DEFAULT];
     if (story?.allowAutoVariants === false) return unique.slice(0, 5);
     const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
