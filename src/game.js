@@ -74,6 +74,7 @@ export class DungeonGame {
     this.save();
     this.renderer.render();
     this.ui.showToast("滑动探索未知区域，点击已探索区域自动寻路");
+    this.story.proximateHold = false;
     this.story.playOpeningStory();
   }
 

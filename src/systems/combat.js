@@ -100,13 +100,19 @@ export class CombatSystem {
   }
 
   finishEnemyVictory(enemy, target, surprise, droppedChest, toastText) {
-    if (!surprise) this.game.movement.commitMove(target, { skipTrigger: !droppedChest });
-    else if (droppedChest) {
-      this.game.events.finishEncounter(false);
-      this.game.events.triggerCurrentRoom();
-    } else this.game.events.finishEncounter();
-    // 掉落宝箱会打开事件面板，此时怪物故事按规则跳过，留待下次击败同类怪重试。
-    this.game.story.tryPlayLore(`enemy:${enemy.type}`);
+    // 主动作优先：击杀瞬间的血量新低只记账不抢戏，怪物故事优先尝试。
+    this.game.story.proximateHold = true;
+    try {
+      if (!surprise) this.game.movement.commitMove(target, { skipTrigger: !droppedChest });
+      else if (droppedChest) {
+        this.game.events.finishEncounter(false);
+        this.game.events.triggerCurrentRoom();
+      } else this.game.events.finishEncounter();
+      // 掉落宝箱会打开事件面板，此时怪物故事按规则跳过，留待下次击败同类怪重试。
+      this.game.story.tryPlayLore(`enemy:${enemy.type}`);
+    } finally {
+      this.game.story.proximateHold = false;
+    }
     this.game.ui.showToast(toastText);
   }
 
