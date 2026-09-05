@@ -88,9 +88,11 @@ export class StorySystem {
     const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
     [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
-    if (unique.length < 3 && baseA) {
-      pushUnique(`${baseA}\n\n${STORY_VARIANT_FILLERS[0]}`);
-      pushUnique(`${baseA}\n\n${STORY_VARIANT_FILLERS[1]}`);
+    if (unique.length < 3) {
+      const paddedBase = baseA || STORY_VARIANT_DEFAULT;
+      STORY_VARIANT_FILLERS.forEach((filler) => {
+        if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
+      });
     }
     return unique.slice(0, 5);
   }
