@@ -129,6 +129,7 @@ export class DungeonGame {
       kicker: ending.kicker,
       text: ending.text,
       buttonLabel: "查看本局",
+      mode: ending.mode || (escaped ? "storyCard" : "death"),
       onClose: presentEndSummary
     });
     if (!shown) presentEndSummary();
