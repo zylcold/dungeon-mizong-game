@@ -8,6 +8,16 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.14.0",
+    date: "2026-09",
+    title: "心神（恐惧值）系统",
+    items: [
+      { kind: "new", text: "新增心神值：上限 100，满值时移动不因心神扣血" },
+      { kind: "new", text: "心神越低移动扣血越多（≤80/60/40/20 可叠加，最多 4 点/步）" },
+      { kind: "improve", text: "交战消耗心神，恢复药剂与视野回满可恢复心神；血条旁可见心神细条" }
+    ]
+  },
+  {
     version: "1.13.3",
     date: "2026-09",
     title: "分叉选择锁死",
