@@ -1,5 +1,10 @@
 # 版本记录
 
+## 1.13.3
+
+- 修复 F1/F2 分叉 ChoiceBar 反复弹出：选定后立即写入 `branchFlags` 并推进 `mainBeat`；已有 flag 时禁止再播。
+- 旧档「有 flag 但 mainBeat 仍停在 F*」接入时跳到下一主线，不重弹。
+
 ## 1.13.2
 
 - 修复故事层「继续」/分叉按钮点不动：`.story-vignette` 设为 `pointer-events: none`，卡片与按钮抬高层级。
