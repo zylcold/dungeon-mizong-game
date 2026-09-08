@@ -107,3 +107,15 @@ test("开发者日记已读进度独立保存，不影响存档与纪录", () =>
   assert.equal(store.loadSeenDiaryVersion(), "1.11.0");
   assert.equal(values.has(STORAGE_KEY), false);
 });
+
+
+test("旧档已有 F1 flag 且停在 F1 时跳到 M3，不重弹", () => {
+  const state = restoreState({
+    totalSteps: 120,
+    loreSeen: ["event:chest", "event:fog", "event:map"],
+    mainBeat: "F1",
+    branchFlags: { F1: "illusion", F2: null }
+  });
+  assert.equal(state.mainBeat, "M3a");
+  assert.equal(state.branchFlags.F1, "illusion");
+});
