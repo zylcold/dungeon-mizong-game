@@ -68,6 +68,7 @@ export class CombatSystem {
       this.game.ui.addLog("combat", "⚔", `一击消灭${definition.name}，生命未受损${droppedChest ? "，并发现掉落宝箱" : ""}`);
       this.game.ui.hideEncounter();
       this.game.pending = null;
+      this.game.fear.onCombatResolved(`execute-${enemy.type}`);
       this.finishEnemyVictory(enemy, target, surprise, droppedChest, droppedChest ? "一击必杀 · 掉落宝箱" : "一击必杀");
       return;
     }
@@ -77,6 +78,7 @@ export class CombatSystem {
       this.game.ui.addLog("damage", "☠", `${definition.name}终结了本次探索`);
       this.game.ui.hideEncounter();
       this.game.pending = null;
+      this.game.fear.onCombatResolved(`defeat-${enemy.type}`);
       this.game.ui.updateUI();
       this.game.renderer.render();
       this.game.endGame(`你没能击败${definition.name}`);
@@ -90,6 +92,7 @@ export class CombatSystem {
     this.game.ui.addLog("combat", definition.icon, `击败${definition.name}，剩余 ${this.game.state.hp} HP${droppedChest ? "，并发现掉落宝箱" : ""}`);
     this.game.ui.hideEncounter();
     this.game.pending = null;
+    this.game.fear.onCombatResolved(`fight-${enemy.type}`);
     this.finishEnemyVictory(
       enemy,
       target,

@@ -137,6 +137,85 @@ button:focus-visible,
   transition: width 220ms ease, background 220ms ease;
 }
 
+.vital-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.fear-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fear-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  position: relative;
+  font-size: 11px;
+  color: #9aa7b3;
+}
+
+.fear-copy strong {
+  color: #d7e2ea;
+  font-size: 12px;
+}
+
+.fear-track {
+  position: relative;
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(28, 40, 48, 0.9);
+  border: 1px solid rgba(90, 120, 140, 0.35);
+}
+
+.fear-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3d6f86, #7eb6c9);
+  transition: width 220ms ease, background 220ms ease;
+}
+
+.fear-fill[data-tier="1"] { background: linear-gradient(90deg, #6a5a3a, #c4a45a); }
+.fear-fill[data-tier="2"] { background: linear-gradient(90deg, #7a3f2a, #d07848); }
+.fear-fill[data-tier="3"] { background: linear-gradient(90deg, #7a2430, #e05a5a); }
+.fear-fill[data-tier="4"] { background: linear-gradient(90deg, #5a1020, #ff4d5e); }
+
+.fear-track.fear-flash {
+  animation: fear-bar-flash 420ms ease;
+}
+
+@keyframes fear-bar-flash {
+  0% { box-shadow: 0 0 0 0 rgba(224, 90, 90, 0.0); }
+  35% { box-shadow: 0 0 0 3px rgba(224, 90, 90, 0.45); }
+  100% { box-shadow: 0 0 0 0 rgba(224, 90, 90, 0.0); }
+}
+
+.fear-float {
+  position: absolute;
+  right: 0;
+  top: -2px;
+  font-size: 11px;
+  color: #f0d2a8;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+}
+
+.fear-float.visible {
+  opacity: 1;
+  transform: translateY(-8px);
+  transition: opacity 180ms ease, transform 700ms ease;
+}
+
+
 .stage {
   position: relative;
   min-height: 0;

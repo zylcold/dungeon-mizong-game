@@ -130,6 +130,15 @@ export class GameUI {
     this.dom.healthTrack.setAttribute("aria-valuemax", String(this.game.state.maxHp));
     this.dom.healthTrack.setAttribute("aria-valuenow", String(this.game.state.hp));
 
+    const fear = Number.isFinite(this.game.state.fear) ? this.game.state.fear : 100;
+    if (this.dom.fearText) this.dom.fearText.textContent = String(fear);
+    if (this.dom.fearFill) {
+      this.dom.fearFill.style.width = `${clamp(fear, 0, 100)}%`;
+      const tier = fear <= 20 ? 4 : fear <= 40 ? 3 : fear <= 60 ? 2 : fear <= 80 ? 1 : 0;
+      this.dom.fearFill.dataset.tier = String(tier);
+    }
+    if (this.dom.fearTrack) this.dom.fearTrack.setAttribute("aria-valuenow", String(fear));
+
     Object.keys(ITEM_DEFS).forEach((itemType) => {
       const count = this.game.state.inventory[itemType] || 0;
       this.dom.counts[itemType].textContent = count;
@@ -166,5 +175,28 @@ export class GameUI {
     this.dom.toast.classList.add("visible");
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.dom.toast.classList.remove("visible"), 1500);
+  }
+
+  showFearFloat(message) {
+    if (!this.dom.fearFloat) {
+      this.showToast(message);
+      return;
+    }
+    this.dom.fearFloat.hidden = false;
+    this.dom.fearFloat.textContent = message;
+    this.dom.fearFloat.classList.add("visible");
+    clearTimeout(this.fearFloatTimer);
+    this.fearFloatTimer = setTimeout(() => {
+      this.dom.fearFloat.classList.remove("visible");
+      this.dom.fearFloat.hidden = true;
+    }, 1000);
+  }
+
+  flashFearBar(tier) {
+    if (!this.dom.fearTrack) return;
+    this.dom.fearTrack.classList.remove("fear-flash");
+    void this.dom.fearTrack.offsetWidth;
+    this.dom.fearTrack.dataset.tier = String(tier);
+    this.dom.fearTrack.classList.add("fear-flash");
   }
 }
