@@ -572,6 +572,7 @@ button:focus-visible,
 
 .story-vignette {
   position: absolute;
+  z-index: 0;
   top: 0;
   right: 0;
   bottom: 0;
@@ -581,6 +582,7 @@ button:focus-visible,
     radial-gradient(circle at 50% 50%, transparent 22%, rgba(0, 0, 0, 0.96) 76%);
   opacity: 0.25;
   transition: opacity 900ms ease 180ms;
+  pointer-events: none;
 }
 
 .story-overlay.visible .story-vignette {
@@ -589,6 +591,7 @@ button:focus-visible,
 
 .story-card {
   position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 430px;
   text-align: center;
@@ -621,10 +624,12 @@ button:focus-visible,
 }
 
 .story-continue {
-  min-width: 132px;
-  min-height: 42px;
+  position: relative;
+  z-index: 2;
+  min-width: 148px;
+  min-height: 44px;
   margin-top: 32px;
-  padding: 9px 18px;
+  padding: 12px 22px;
   border: 1px solid rgba(169, 74, 80, 0.58);
   border-radius: 99px;
   background: rgba(72, 24, 29, 0.42);
@@ -632,6 +637,14 @@ button:focus-visible,
   cursor: pointer;
   font-size: 12px;
   letter-spacing: 0.12em;
+  -webkit-tap-highlight-color: rgba(169, 74, 80, 0.35);
+  touch-action: manipulation;
+}
+
+.story-continue:active {
+  transform: scale(0.97);
+  background: rgba(96, 32, 38, 0.72);
+  border-color: rgba(200, 100, 106, 0.85);
 }
 
 .story-overlay.mode-storyCard .story-text,
@@ -707,9 +720,11 @@ button:focus-visible,
 }
 
 .story-choice {
+  position: relative;
+  z-index: 2;
   width: 100%;
   min-height: 44px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 1px solid rgba(169, 74, 80, 0.62);
   border-radius: 12px;
   background: rgba(72, 24, 29, 0.55);
@@ -717,10 +732,14 @@ button:focus-visible,
   cursor: pointer;
   font-size: 14px;
   letter-spacing: 0.06em;
+  -webkit-tap-highlight-color: rgba(169, 74, 80, 0.35);
+  touch-action: manipulation;
 }
 
 .story-choice:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  background: rgba(96, 32, 38, 0.8);
+  border-color: rgba(200, 100, 106, 0.9);
 }
 
 .story-overlay.mode-choiceBar .story-continue {
