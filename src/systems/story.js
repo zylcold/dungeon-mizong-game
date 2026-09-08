@@ -77,10 +77,26 @@ export class StorySystem {
   tryAdvanceMainline() {
     if (!this.game.state || !this.game.state.active) return false;
     if (this.proximateHold) return false;
-    const beatId = this.game.state.mainBeat;
+    let beatId = this.game.state.mainBeat;
     if (!beatId || beatId === "E") return false;
+    const flags = this.game.state.branchFlags && typeof this.game.state.branchFlags === "object"
+      ? this.game.state.branchFlags
+      : {};
+    // 已锁分叉则禁止再播 ChoiceBar，直接跳到对应下一节点。
+    if ((beatId === "F1" || beatId === "F2") && flags[beatId]) {
+      const beat = MAINLINE_BEATS[beatId];
+      const next = this.nextBeatAfterFlag(beat, flags[beatId]);
+      if (next) {
+        this.game.state.mainBeat = next;
+        beatId = next;
+        this.game.save();
+      } else {
+        return false;
+      }
+    }
     const beat = MAINLINE_BEATS[beatId];
     if (!beat) return false;
+    if (beat.mode === "choiceBar" && beat.flagKey && flags[beat.flagKey]) return false;
     if (!this.mainlineRequirementsMet(beat)) return false;
     return this.playMainlineBeat(beat);
   }
@@ -106,6 +122,13 @@ export class StorySystem {
       echo: choice.echo,
       nextBeat: choice.nextBeat
     }));
+  }
+
+  /** 已选分叉则返回应去的下一主线节点。 */
+  nextBeatAfterFlag(beat, flagValue) {
+    if (!beat || !flagValue) return null;
+    const choice = (beat.choices || []).find((item) => item.id === flagValue);
+    return choice && choice.nextBeat ? choice.nextBeat : null;
   }
 
   playMainlineBeat(beat) {
@@ -344,6 +367,8 @@ export class StorySystem {
       ? this.game.state.branchFlags
       : { F1: null, F2: null };
     if (flagKey === "F1" || flagKey === "F2") this.game.state.branchFlags[flagKey] = choice.id;
+    // 立刻推进 mainBeat，避免 echo 失败或冷却后再回放 ChoiceBar。
+    if (choice.nextBeat) this.game.state.mainBeat = choice.nextBeat;
     // 先清掉当前 ChoiceBar，再以 echo 卡片播出（special，同一步可能互斥——临时放宽：直接 showStory 前清 currentStory）。
     this.dom.storyOverlay.classList.remove("visible");
     this.dom.storyOverlay.hidden = true;
