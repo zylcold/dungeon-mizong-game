@@ -500,6 +500,7 @@ assert.ok(minimapStrokeStyles.includes("#3a505d"), "缩略图探索网络应以�
 assert.equal(minimapStrokeStyles.includes("rgba(190, 73, 79, 0.98)"), false, "缩略图不应再使用高饱和红色网格");
 
 // 血量节点随机选择一条线索且只播放一次，出口提示只能使用四个正方向。
+game.state.mainBeat = "E"; // 隔离主线，专测血量碎片
 for (const hp of [74, 49, 24]) {
   game.state.hp = hp;
   game.state.lastStoryStep = game.state.totalSteps - 30;
@@ -730,6 +731,7 @@ assert.equal(cooldownSave.lastStoryStep, game.state.totalSteps, "剧情间隔进
 assert.equal(cooldownSave.pendingStories, undefined, "待播队列已移除，存档不再包含队列字段");
 
 // 血量线跳过即弃：间隔不足时越过阈值不演出，间隔恢复后也不补播，只在下一次新低时重新尝试。
+game.state.mainBeat = "E"; // 关掉主线门闩，避免 M1+ 在 updateUI 时抢窗
 game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
 game.state.hp = 20;
 game.state.lastStoryStep = game.state.totalSteps;
@@ -760,6 +762,7 @@ assert.equal(game.events.pendingLoreKey, "event:chest", "面板打开时记录�
 game.events.dismissEncounter();
 assert.equal(game.events.pendingLoreKey, null, "直接关闭面板当场清空待演键");
 assert.equal(game.state.loreSeen.includes("event:chest"), false, "间隔不足时跳过且不标记已读");
+game.state.mainBeat = "E"; // updateUI 时不要让主线冒出来
 game.state.totalSteps += 20;
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "被跳过的剧情不会在之后补播");
@@ -913,6 +916,7 @@ assert.equal(game.story.tryPlayLore("item:potion"), true, "第 20 步起可演�
 dismissAllStories();
 
 // 主动作优先：击杀/结算进行中血量新低只记账不抢戏，hold 结束后也不补播。
+game.state.mainBeat = "E"; // 隔离主线，专测 hold/血量线
 game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
 game.state.maxHp = 100;
 game.state.hp = 14;
