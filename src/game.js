@@ -119,7 +119,7 @@ export class DungeonGame {
       endedAt: Date.now()
     };
     this.storage.completeRun(record);
-    const ending = getEnding(reason, escaped);
+    const ending = getEnding(reason, escaped, this.state.branchFlags || {});
     this.ui.prepareEndSummary(record, ending);
     const presentEndSummary = () => this.maps.presentEndSummary();
     const shown = this.story.showStory({

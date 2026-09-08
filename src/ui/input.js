@@ -85,6 +85,13 @@ export class InputController {
     });
     this.dom.endRestartButton.addEventListener("click", () => this.game.startNewGame());
     this.dom.storyContinueButton.addEventListener("click", () => this.game.story.hideStory());
+    if (this.dom.storyChoices) {
+      this.dom.storyChoices.addEventListener("click", (event) => {
+        const button = event.target.closest(".story-choice");
+        if (!button || !button.dataset.choiceId) return;
+        this.game.story.chooseMainlineOption(button.dataset.choiceId);
+      });
+    }
     this.dom.restartButton.addEventListener("click", () => {
       if (!this.game.state || window.confirm("确定结束当前探索并重新开始吗？")) this.game.startNewGame();
     });

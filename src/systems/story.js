@@ -2,7 +2,7 @@
 import { NORMAL_STORY_MIN_GAP_STEPS } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
-import { OPENING_STORY } from "../data/endings.js";
+import { MAINLINE_BEATS } from "../data/mainline.js";
 import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
 
 const STORY_VARIANT_FILLERS = [
@@ -48,16 +48,14 @@ export class StorySystem {
 
   checkStoryProgress() {
     if (!this.game.state || !this.game.state.active || this.game.state.hp <= 0) return;
+    // 主线优先于血量碎片；条件未到则继续走旧碎片逻辑。
+    if (this.tryAdvanceMainline()) return;
     this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
     const healthRatio = this.game.state.hp / Math.max(1, this.game.state.maxHp);
-    // 血量线只在「创下新低」的那一刻尝试一次：被跳过即彻底丢弃，等下一次新低再走触发逻辑，
-    // 绝不在间隔恢复后回头补播（那会让玩家在几步后看到莫名其妙的演出）。
     const previousLow = Number.isFinite(this.game.state.hpStoryRatioLow) ? this.game.state.hpStoryRatioLow : 1;
     if (healthRatio >= previousLow) return;
     this.game.state.hpStoryRatioLow = healthRatio;
     this.game.save();
-    // 主动作（击杀/事件结算）进行中时血量新低只记账、不尝试演出，
-    // 把这一刻的演出机会让给主动作自己的剧情；被让位的血量线按跳过处理，绝不补播。
     if (this.proximateHold) return;
     const eligible = STORY_SCENES.filter((scene) => (
       healthRatio <= scene.threshold && !this.game.state.storyScenes.includes(scene.id)
@@ -70,8 +68,77 @@ export class StorySystem {
       kicker: `记忆残片 · ${scene.title}`,
       text: variant.text,
       buttonLabel: "继续前行",
-      markIds: [scene.id]
+      markIds: [scene.id],
+      mode: "lore"
     });
+  }
+
+  /** 若当前 mainBeat 条件满足则播出；返回是否已占用演出窗。 */
+  tryAdvanceMainline() {
+    if (!this.game.state || !this.game.state.active) return false;
+    if (this.proximateHold) return false;
+    const beatId = this.game.state.mainBeat;
+    if (!beatId || beatId === "E") return false;
+    const beat = MAINLINE_BEATS[beatId];
+    if (!beat) return false;
+    if (!this.mainlineRequirementsMet(beat)) return false;
+    return this.playMainlineBeat(beat);
+  }
+
+  mainlineRequirementsMet(beat) {
+    const require = beat.require || {};
+    const steps = Number.isFinite(this.game.state.totalSteps) ? this.game.state.totalSteps : 0;
+    const loreCount = Array.isArray(this.game.state.loreSeen) ? this.game.state.loreSeen.length : 0;
+    if (Number.isFinite(require.minSteps) && steps < require.minSteps) return false;
+    if (Number.isFinite(require.minLore) && loreCount < require.minLore) return false;
+    return true;
+  }
+
+  resolveChoices(beat) {
+    const anchors = Array.isArray(this.game.state.realityAnchors) ? this.game.state.realityAnchors : [];
+    const hasAnchor = anchors.length > 0;
+    return (beat.choices || []).filter((choice) => {
+      if (choice.requireAnchor) return hasAnchor;
+      return choice.always !== false;
+    }).map((choice) => ({
+      id: choice.id,
+      label: choice.label,
+      echo: choice.echo,
+      nextBeat: choice.nextBeat
+    }));
+  }
+
+  playMainlineBeat(beat) {
+    const payload = {
+      id: `main-${beat.id}`,
+      kicker: beat.kicker,
+      text: beat.text || "",
+      buttonLabel: beat.buttonLabel || "继续",
+      mode: beat.mode || "storyCard",
+      beatId: beat.id,
+      nextBeat: beat.nextBeat || null,
+      illusion: beat.illusion || "",
+      reality: beat.reality || "",
+      flagKey: beat.flagKey || null
+    };
+    if (beat.mode === "choiceBar") {
+      payload.choices = this.resolveChoices(beat);
+      if (!payload.choices.length) return false;
+    }
+    return this.tryPlayMainBeat(payload);
+  }
+
+  playOpeningStory() {
+    const beat = MAINLINE_BEATS.M0;
+    this.game.state.mainBeat = "M0";
+    return this.playMainlineBeat(beat);
+  }
+
+  /**
+   * 主线节点通道：始终 special，绕过普通 20 步冷却；同一步/遮罩互斥仍生效。
+   */
+  tryPlayMainBeat(scene, options = {}) {
+    return this.tryPlayStory(scene, { ...options, special: true });
   }
 
   pickStoryVariant(sceneKey, story) {
@@ -105,35 +172,12 @@ export class StorySystem {
     const baseB = unique[1] || baseA;
     if (unique.length >= 2) [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
     if (unique.length < 3) {
-      // 基底先截到两段，让 filler 成为第三段，避免三段截断后退化成重复文本而被去重丢弃。
       const paddedBase = this.clipStoryParagraphs(baseA || STORY_VARIANT_DEFAULT, 2);
       STORY_VARIANT_FILLERS.forEach((filler) => {
         if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
       });
     }
     return unique.slice(0, 5);
-  }
-
-  playOpeningStory() {
-    const variant = this.pickStoryVariant("intro", OPENING_STORY);
-    // M0 走主线 special 通道，不受 20 步普通冷却影响。
-    return this.tryPlayMainBeat({
-      id: `intro-${variant.key}`,
-      kicker: "序章 · 醒来",
-      text: variant.text,
-      buttonLabel: "开始探索",
-      mode: "storyCard",
-      beatId: "M0",
-      nextBeat: "M1"
-    });
-  }
-
-  /**
-   * 主线节点通道：始终 special，绕过普通 20 步冷却；同一步/遮罩互斥仍生效。
-   * scene 可带 mode / choices，写入 currentStory 以便刷新恢复 ChoiceBar。
-   */
-  tryPlayMainBeat(scene, options = {}) {
-    return this.tryPlayStory(scene, { ...options, special: true });
   }
 
   tryPlayLore(loreKey) {
@@ -151,7 +195,6 @@ export class StorySystem {
       buttonLabel: "继续",
       mode: "lore"
     });
-    // 只有真正演出过才标记 loreSeen；被跳过的片段留待下次同类触发重试。
     if (played) {
       this.game.state.loreSeen.push(loreKey);
       this.game.state.realityAnchors = Array.isArray(this.game.state.realityAnchors)
@@ -169,13 +212,11 @@ export class StorySystem {
     if (!this.game.state || !this.game.state.active) return false;
     if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
     if (this.game.state.currentStory) return false;
-    const special = Boolean(options.special) || /^intro-|^ending-/u.test(scene.id);
+    const special = Boolean(options.special) || /^intro-|^ending-|^main-/u.test(scene.id);
     const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -NORMAL_STORY_MIN_GAP_STEPS;
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
-    // 同一步绝不连弹；普通演出至少间隔 20 步，间隔内触发直接跳过、不排队。
-    // 主线 special（含 tryPlayMainBeat）不受普通冷却限制。
     if (this.game.state.totalSteps === lastStep) return false;
     if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     if (!this.showStory(scene)) return false;
@@ -188,8 +229,39 @@ export class StorySystem {
   tryResumeStory() {
     if (!this.game.state || !this.game.state.active || !this.game.state.currentStory) return false;
     if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
-    // 恢复的是同一次未读演出，不重新抽签，也不重新消耗普通演出间隔额度。
     return this.showStory(this.game.state.currentStory);
+  }
+
+  clearStoryModeClasses() {
+    const overlay = this.dom.storyOverlay;
+    if (!overlay) return;
+    overlay.classList.remove("mode-lore", "mode-storyCard", "mode-dualPanel", "mode-choiceBar", "mode-echo");
+  }
+
+  applyStoryMode(mode) {
+    this.clearStoryModeClasses();
+    const resolved = typeof mode === "string" && mode ? mode : "lore";
+    this.dom.storyOverlay.classList.add(`mode-${resolved}`);
+    const isDual = resolved === "dualPanel";
+    const isChoice = resolved === "choiceBar";
+    if (this.dom.storyText) this.dom.storyText.hidden = isDual;
+    if (this.dom.storyDual) this.dom.storyDual.hidden = !isDual;
+    if (this.dom.storyChoices) this.dom.storyChoices.hidden = !isChoice;
+    if (this.dom.storyContinueButton) this.dom.storyContinueButton.hidden = isChoice;
+  }
+
+  renderChoices(choices) {
+    const host = this.dom.storyChoices;
+    if (!host) return;
+    host.innerHTML = "";
+    (choices || []).forEach((choice) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "story-choice";
+      button.textContent = choice.label;
+      button.dataset.choiceId = choice.id;
+      host.appendChild(button);
+    });
   }
 
   showStory({
@@ -202,26 +274,41 @@ export class StorySystem {
     mode = "lore",
     choices = null,
     beatId = null,
-    nextBeat = null
+    nextBeat = null,
+    illusion = "",
+    reality = "",
+    flagKey = null,
+    choiceId = null
   }) {
     if (!this.dom.storyOverlay.hidden) return false;
     this.game.movement.cancelAutoPath();
+    const resolvedMode = typeof mode === "string" && mode ? mode : "lore";
+    const resolvedChoices = Array.isArray(choices) ? choices : null;
     if (this.game.state && this.game.state.active) {
       const payload = {
         id,
         kicker,
-        text,
+        text: text || "",
         buttonLabel,
         markIds: Array.isArray(markIds) ? markIds : [],
-        mode: typeof mode === "string" ? mode : "lore"
+        mode: resolvedMode
       };
-      if (Array.isArray(choices)) payload.choices = choices;
+      if (resolvedChoices) payload.choices = resolvedChoices;
       if (typeof beatId === "string") payload.beatId = beatId;
       if (typeof nextBeat === "string") payload.nextBeat = nextBeat;
+      if (illusion) payload.illusion = illusion;
+      if (reality) payload.reality = reality;
+      if (typeof flagKey === "string") payload.flagKey = flagKey;
+      if (typeof choiceId === "string") payload.choiceId = choiceId;
       this.game.state.currentStory = payload;
     }
+    this.applyStoryMode(resolvedMode);
     this.dom.storyKicker.textContent = kicker;
-    this.dom.storyText.textContent = text;
+    this.dom.storyText.textContent = text || "";
+    if (this.dom.storyIllusion) this.dom.storyIllusion.textContent = illusion || "";
+    if (this.dom.storyReality) this.dom.storyReality.textContent = reality || "";
+    if (resolvedMode === "choiceBar") this.renderChoices(resolvedChoices || []);
+    else if (this.dom.storyChoices) this.dom.storyChoices.innerHTML = "";
     this.dom.storyContinueButton.textContent = buttonLabel;
     this.storyOnClose = onClose;
     this.dom.storyOverlay.hidden = false;
@@ -233,17 +320,51 @@ export class StorySystem {
     return true;
   }
 
+  /** ChoiceBar 选项：锁分叉、播回响、推进主线。 */
+  chooseMainlineOption(choiceId) {
+    if (!this.game.state || !this.game.state.active || !this.game.state.currentStory) return false;
+    const scene = this.game.state.currentStory;
+    if (scene.mode !== "choiceBar" || !Array.isArray(scene.choices)) return false;
+    const choice = scene.choices.find((item) => item.id === choiceId);
+    if (!choice) return false;
+    const flagKey = scene.flagKey || scene.beatId;
+    this.game.state.branchFlags = this.game.state.branchFlags && typeof this.game.state.branchFlags === "object"
+      ? this.game.state.branchFlags
+      : { F1: null, F2: null };
+    if (flagKey === "F1" || flagKey === "F2") this.game.state.branchFlags[flagKey] = choice.id;
+    // 先清掉当前 ChoiceBar，再以 echo 卡片播出（special，同一步可能互斥——临时放宽：直接 showStory 前清 currentStory）。
+    this.dom.storyOverlay.classList.remove("visible");
+    this.dom.storyOverlay.hidden = true;
+    this.game.state.currentStory = null;
+    this.game.state.lastStoryStep = this.game.state.totalSteps - 1;
+    this.game.save();
+    return this.tryPlayMainBeat({
+      id: `main-${scene.beatId || "choice"}-echo-${choice.id}`,
+      kicker: scene.kicker || "回响",
+      text: choice.echo || "",
+      buttonLabel: "继续",
+      mode: "echo",
+      beatId: scene.beatId,
+      nextBeat: choice.nextBeat || scene.nextBeat || null,
+      choiceId: choice.id
+    });
+  }
+
   hideStory() {
     if (this.dom.storyOverlay.hidden) return;
     this.dom.storyOverlay.classList.remove("visible");
     this.dom.storyOverlay.hidden = true;
+    this.clearStoryModeClasses();
+    if (this.dom.storyChoices) this.dom.storyChoices.innerHTML = "";
+    if (this.dom.storyDual) this.dom.storyDual.hidden = true;
+    if (this.dom.storyText) this.dom.storyText.hidden = false;
+    if (this.dom.storyContinueButton) this.dom.storyContinueButton.hidden = false;
     if (this.game.state && this.game.state.active && this.game.state.currentStory) {
       const scene = this.game.state.currentStory;
       this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
       [scene.id].concat(scene.markIds || []).forEach((sceneId) => {
         if (sceneId && !this.game.state.storyScenes.includes(sceneId)) this.game.state.storyScenes.push(sceneId);
       });
-      // 主线节点关闭后推进 mainBeat（若场景声明了 nextBeat）。
       if (typeof scene.nextBeat === "string" && scene.nextBeat) {
         this.game.state.mainBeat = scene.nextBeat;
       } else if (typeof scene.beatId === "string" && scene.beatId === "M0") {
@@ -251,6 +372,8 @@ export class StorySystem {
       }
       this.game.state.currentStory = null;
       this.game.save();
+    } else if (this.game.state) {
+      this.game.state.currentStory = null;
     }
     const onClose = this.storyOnClose;
     this.storyOnClose = null;

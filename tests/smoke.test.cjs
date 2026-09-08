@@ -130,7 +130,7 @@ const elementIds = [
   "encounterCard", "encounterIcon", "encounterKicker", "encounterTitle", "encounterDescription",
   "encounterOutcome", "encounterActions", "encounterClose", "startOverlay", "continueButton", "newGameButton",
   "bestRecord", "diaryOverlay", "diaryClose", "diaryList", "diaryButton", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
-  "storyOverlay", "storyKicker", "storyText", "storyContinueButton",
+  "storyOverlay", "storyKicker", "storyText", "storyDual", "storyIllusion", "storyReality", "storyChoices", "storyContinueButton",
   "restartButton", "toast", "countPotion", "countVision", "countExecute", "countTeleport", "timerVision"
 ];
 
@@ -208,18 +208,21 @@ assert.equal(game.renderer.assets.get().naturalWidth, 1400, "运行时应加载�
 game.startNewGame();
 
 assert.equal(elements.storyOverlay.hidden, false, "新游戏应先播放开场故事");
-assert.ok(elements.storyKicker.textContent.includes("序章"));
+assert.ok(elements.storyKicker.textContent.includes("序章 · 坠谷"), "M0 钩子应为「序章 · 坠谷」");
 assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
 assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
-assert.ok(elements.storyText.textContent.length > 60);
+assert.equal(game.state.currentStory && game.state.currentStory.mode, "storyCard", "开场应走 StoryCard");
+assert.ok(elements.storyText.textContent.length > 40, "StoryCard 正文应按 mode 校验可读长度（主线可短于旧碎片阈值）");
 assert.ok(elements.storyText.textContent.split(/\n\s*\n/u).filter(Boolean).length <= 3, "单次演出文本不应超过三段");
 const openingCandidates = game.story.buildStoryCandidates({
   illusion: "幻象在你眼前晃动。",
   reality: "你听见山风从耳边穿过。"
 });
 assert.ok(openingCandidates.length >= 3 && openingCandidates.length <= 5, "同一演出应存在 3-5 条候选文本");
+assert.equal(game.state.mainBeat, "M0", "开场播放中 mainBeat 应为 M0");
 elements.storyContinueButton.listeners.click[0]();
 assert.equal(elements.storyOverlay.hidden, true, "开场每局只播放随机选中的一段故事");
+assert.equal(game.state.mainBeat, "M1", "关闭 M0 后应推进到 M1");
 assert.equal(rootStyleValues["--app-safe-area-top"], "96px", "移动端应同时避让状态栏与宿主导航工具栏");
 
 // 开发者日记：新玩家不自动弹出，老玩家升级后首次进入自动展示一次。
@@ -497,6 +500,7 @@ assert.ok(minimapStrokeStyles.includes("#3a505d"), "缩略图探索网络应以�
 assert.equal(minimapStrokeStyles.includes("rgba(190, 73, 79, 0.98)"), false, "缩略图不应再使用高饱和红色网格");
 
 // 血量节点随机选择一条线索且只播放一次，出口提示只能使用四个正方向。
+game.state.mainBeat = "E"; // 隔离主线，专测血量碎片
 for (const hp of [74, 49, 24]) {
   game.state.hp = hp;
   game.state.lastStoryStep = game.state.totalSteps - 30;
@@ -727,6 +731,7 @@ assert.equal(cooldownSave.lastStoryStep, game.state.totalSteps, "剧情间隔进
 assert.equal(cooldownSave.pendingStories, undefined, "待播队列已移除，存档不再包含队列字段");
 
 // 血量线跳过即弃：间隔不足时越过阈值不演出，间隔恢复后也不补播，只在下一次新低时重新尝试。
+game.state.mainBeat = "E"; // 关掉主线门闩，避免 M1+ 在 updateUI 时抢窗
 game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
 game.state.hp = 20;
 game.state.lastStoryStep = game.state.totalSteps;
@@ -757,6 +762,7 @@ assert.equal(game.events.pendingLoreKey, "event:chest", "面板打开时记录�
 game.events.dismissEncounter();
 assert.equal(game.events.pendingLoreKey, null, "直接关闭面板当场清空待演键");
 assert.equal(game.state.loreSeen.includes("event:chest"), false, "间隔不足时跳过且不标记已读");
+game.state.mainBeat = "E"; // updateUI 时不要让主线冒出来
 game.state.totalSteps += 20;
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "被跳过的剧情不会在之后补播");
@@ -854,7 +860,7 @@ assert.equal(elements.eventLog.children[199].children[2].textContent, "浏览旧
 // 未读演出先持久化；恢复同一段文字，不重抽路线；未读期间其他触发直接跳过。
 game.startNewGame();
 const introSnapshot = JSON.parse(JSON.stringify(game.state.currentStory));
-assert.ok(introSnapshot && introSnapshot.id.startsWith("intro-"));
+assert.ok(introSnapshot && (introSnapshot.id.startsWith("main-M0") || introSnapshot.id.startsWith("intro-")), "开场 id 应为 main-M0");
 assert.equal(game.state.storyScenes.includes(introSnapshot.id), false, "尚未确认的开场不能标记完成");
 assert.equal(game.story.tryPlayLore("item:potion"), false, "开场未读期间其他剧情触发直接跳过");
 assert.equal(game.state.loreSeen.includes("item:potion"), false, "跳过的剧情不标记已读");
@@ -910,6 +916,7 @@ assert.equal(game.story.tryPlayLore("item:potion"), true, "第 20 步起可演�
 dismissAllStories();
 
 // 主动作优先：击杀/结算进行中血量新低只记账不抢戏，hold 结束后也不补播。
+game.state.mainBeat = "E"; // 隔离主线，专测 hold/血量线
 game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
 game.state.maxHp = 100;
 game.state.hp = 14;
