@@ -130,7 +130,7 @@ const elementIds = [
   "encounterCard", "encounterIcon", "encounterKicker", "encounterTitle", "encounterDescription",
   "encounterOutcome", "encounterActions", "encounterClose", "startOverlay", "continueButton", "newGameButton",
   "bestRecord", "diaryOverlay", "diaryClose", "diaryList", "diaryButton", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
-  "storyOverlay", "storyKicker", "storyText", "storyContinueButton",
+  "storyOverlay", "storyKicker", "storyText", "storyDual", "storyIllusion", "storyReality", "storyChoices", "storyContinueButton",
   "restartButton", "toast", "countPotion", "countVision", "countExecute", "countTeleport", "timerVision"
 ];
 
@@ -208,18 +208,21 @@ assert.equal(game.renderer.assets.get().naturalWidth, 1400, "运行时应加载�
 game.startNewGame();
 
 assert.equal(elements.storyOverlay.hidden, false, "新游戏应先播放开场故事");
-assert.ok(elements.storyKicker.textContent.includes("序章"));
+assert.ok(elements.storyKicker.textContent.includes("序章 · 坠谷"), "M0 钩子应为「序章 · 坠谷」");
 assert.equal(elements.storyKicker.textContent.includes("幻觉线"), false);
 assert.equal(elements.storyKicker.textContent.includes("真实线"), false);
-assert.ok(elements.storyText.textContent.length > 60);
+assert.equal(game.state.currentStory && game.state.currentStory.mode, "storyCard", "开场应走 StoryCard");
+assert.ok(elements.storyText.textContent.length > 40, "StoryCard 正文应按 mode 校验可读长度（主线可短于旧碎片阈值）");
 assert.ok(elements.storyText.textContent.split(/\n\s*\n/u).filter(Boolean).length <= 3, "单次演出文本不应超过三段");
 const openingCandidates = game.story.buildStoryCandidates({
   illusion: "幻象在你眼前晃动。",
   reality: "你听见山风从耳边穿过。"
 });
 assert.ok(openingCandidates.length >= 3 && openingCandidates.length <= 5, "同一演出应存在 3-5 条候选文本");
+assert.equal(game.state.mainBeat, "M0", "开场播放中 mainBeat 应为 M0");
 elements.storyContinueButton.listeners.click[0]();
 assert.equal(elements.storyOverlay.hidden, true, "开场每局只播放随机选中的一段故事");
+assert.equal(game.state.mainBeat, "M1", "关闭 M0 后应推进到 M1");
 assert.equal(rootStyleValues["--app-safe-area-top"], "96px", "移动端应同时避让状态栏与宿主导航工具栏");
 
 // 开发者日记：新玩家不自动弹出，老玩家升级后首次进入自动展示一次。
