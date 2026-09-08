@@ -56,6 +56,19 @@ export function restoreState(state) {
     F1: flags.F1 === "illusion" || flags.F1 === "reality" ? flags.F1 : null,
     F2: flags.F2 === "sword" || flags.F2 === "basket" || flags.F2 === "signal" ? flags.F2 : null
   };
+  // 旧档：已有分叉 flag 但 mainBeat 仍停在 F* 时，跳到下一主线，禁止重弹 ChoiceBar。
+  if (state.mainBeat === "F1" && state.branchFlags.F1) {
+    state.mainBeat = state.branchFlags.F1 === "illusion" ? "M3a" : "M3b";
+  }
+  if (state.mainBeat === "F2" && state.branchFlags.F2) {
+    state.mainBeat = "M4";
+  }
+  if (state.currentStory && state.currentStory.mode === "choiceBar") {
+    const locked = state.currentStory.flagKey === "F1" || state.currentStory.beatId === "F1"
+      ? state.branchFlags.F1
+      : (state.currentStory.flagKey === "F2" || state.currentStory.beatId === "F2" ? state.branchFlags.F2 : null);
+    if (locked) state.currentStory = null;
+  }
   const anchors = Array.isArray(state.realityAnchors)
     ? state.realityAnchors.filter((key) => typeof key === "string")
     : [];
