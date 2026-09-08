@@ -7,6 +7,7 @@ import { restoreState } from "../src/state/migrations.js";
 import { SaveStore } from "../src/state/save-store.js";
 import { DEV_DIARY } from "../src/data/dev-diary.js";
 import { SAVE_VERSION, STORAGE_KEY, RECORD_KEY, STORY_TRIGGER_VERSION, APP_VERSION } from "../src/config.js";
+import { fearHpPerStep } from "../src/systems/fear.js";
 
 test("迷宫模块不依赖 DOM，同一种子生成相同拓扑和实体", () => {
   const first = generateMaze(20260904);
@@ -106,4 +107,15 @@ test("开发者日记已读进度独立保存，不影响存档与纪录", () =>
   store.saveSeenDiaryVersion("1.11.0");
   assert.equal(store.loadSeenDiaryVersion(), "1.11.0");
   assert.equal(values.has(STORAGE_KEY), false);
+});
+
+
+test("恐惧档位扣血含边界：100 免伤，≤80/60/40/20 可叠加", () => {
+  assert.equal(fearHpPerStep(100), 0);
+  assert.equal(fearHpPerStep(81), 0);
+  assert.equal(fearHpPerStep(80), 1);
+  assert.equal(fearHpPerStep(60), 2);
+  assert.equal(fearHpPerStep(40), 3);
+  assert.equal(fearHpPerStep(20), 4);
+  assert.equal(fearHpPerStep(0), 4);
 });
