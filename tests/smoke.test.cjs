@@ -831,17 +831,19 @@ const completedRunMetrics = {
   logs: game.state.logs.length
 };
 
-// 死亡只是幻觉结束：玩家醒来后仍会走完现实归途。
+// 死亡结局停在幻境：不梦醒、不回村；出口路径才走醒来。
 game.startNewGame();
 dismissAllStories();
 game.endGame("你倒在了迷宫深处", false);
 assert.equal(elements.storyOverlay.hidden, false);
+assert.ok(elements.storyKicker.textContent.includes("沉没") || elements.storyKicker.textContent.includes("结局"), "死亡结局应用冷色死亡钩子");
+assert.equal(elements.storyKicker.textContent.includes("梦醒"), false);
 assert.ok(elements.storyText.textContent.includes("你倒在了迷宫深处"));
-assert.ok(elements.storyText.textContent.includes("现实归途的开始"));
-assert.ok(elements.storyKicker.textContent.includes("梦醒"));
+assert.ok(elements.storyText.textContent.includes("暗红走廊没有碎裂"));
+assert.equal(elements.storyText.textContent.includes("现实归途的开始"), false);
+assert.equal(elements.storyText.textContent.includes("回村"), false);
 dismissAllStories();
-assert.ok(elements.endReveal.textContent.includes("真实路线"));
-assert.equal(elements.endReveal.textContent.includes("无法回应"), false);
+assert.ok(elements.endReveal.textContent.includes("没有醒来") || elements.endReveal.textContent.includes("吹不到这里"));
 
 // 日志越过容量上限后仍持续刷新，浏览旧记录时仍提示新事件。
 game.startNewGame();
