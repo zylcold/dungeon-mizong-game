@@ -12,6 +12,7 @@ import { InventorySystem } from "./systems/inventory.js";
 import { MovementSystem } from "./systems/movement.js";
 import { StorySystem } from "./systems/story.js";
 import { VisionSystem } from "./systems/vision.js";
+import { FearSystem } from "./systems/fear.js";
 import { createDOM } from "./ui/dom.js";
 import { DevDiary } from "./ui/dev-diary.js";
 import { GameUI } from "./ui/game-ui.js";
@@ -26,6 +27,7 @@ export class DungeonGame {
     this.input = new InputController(this);
     this.movement = new MovementSystem(this);
     this.vision = new VisionSystem(this);
+    this.fear = new FearSystem(this);
     this.events = new EventSystem(this);
     this.inventory = new InventorySystem(this);
     this.combat = new CombatSystem(this);
