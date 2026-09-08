@@ -16,6 +16,8 @@ export function createInitialState() {
     fear: 100,
     fearDrainMilestone: 0,
     fearTier: 0,
+    fearCalmTurns: 0,
+    spiritIntroSeen: false,
     inventory: { potion: 1, vision: 0, execute: 0, teleport: 0 },
     visionTurns: 0,
     fogTurns: 0,

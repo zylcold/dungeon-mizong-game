@@ -8,6 +8,16 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.14.1",
+    date: "2026-09",
+    title: "心神打磨与死亡结局",
+    items: [
+      { kind: "improve", text: "心神仅在低于 60 时每回合失血 1 点；连续五回合避战且未遇遗骸可回升心神" },
+      { kind: "new", text: "首次跌破 60 播放「心神溃散」说明，只播一次" },
+      { kind: "improve", text: "生命归零改为幻境死亡结局；找到出口才梦醒回现实" }
+    ]
+  },
+  {
     version: "1.14.0",
     date: "2026-09",
     title: "心神（恐惧值）系统",

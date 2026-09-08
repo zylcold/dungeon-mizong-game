@@ -110,6 +110,7 @@ export class EventSystem {
         });
         break;
       case "corpse":
+        this.game.fear.onCorpseEncountered();
         this.game.ui.showEncounter({
           kicker: "风险事件",
           title: definition.name,

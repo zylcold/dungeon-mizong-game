@@ -168,6 +168,7 @@ export class StorySystem {
     const id = scene && scene.id ? String(scene.id) : "";
     if (id === "main-M0" || id.startsWith("main-M0") || id.startsWith("intro-")) return true;
     if (id.startsWith("ending-")) return true;
+    if (id === "spirit-intro" || (scene && scene.spiritIntro)) return true;
     if (scene && scene.beatId === "M0") return true;
     return false;
   }
@@ -270,7 +271,7 @@ export class StorySystem {
   clearStoryModeClasses() {
     const overlay = this.dom.storyOverlay;
     if (!overlay) return;
-    overlay.classList.remove("mode-lore", "mode-storyCard", "mode-dualPanel", "mode-choiceBar", "mode-echo");
+    overlay.classList.remove("mode-lore", "mode-storyCard", "mode-dualPanel", "mode-choiceBar", "mode-echo", "mode-death");
   }
 
   applyStoryMode(mode) {

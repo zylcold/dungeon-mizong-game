@@ -230,14 +230,14 @@ assert.equal(elements.diaryOverlay.hidden, true, "新玩家首次进入不应自
 store.set("dungeon-mizong-diary-v1", "1.11.0");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, false, "升级后首次进入应自动展示开发者日记");
-assert.equal(store.get("dungeon-mizong-diary-v1"), "1.14.0", "展示后应记录已读版本");
+assert.equal(store.get("dungeon-mizong-diary-v1"), "1.14.1", "展示后应记录已读版本");
 elements.diaryClose.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, true, "关闭按钮应关闭开发者日记");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, true, "同一版本只自动展示一次");
 elements.diaryButton.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, false, "开始界面入口可随时打开开发者日记");
-assert.equal(elements.diaryList.children.length, 7, "开发者日记应包含七个版本的记录");
+assert.equal(elements.diaryList.children.length, 8, "开发者日记应包含八个版本的记录");
 elements.diaryOverlay.listeners.click[0]({ target: elements.diaryOverlay });
 assert.equal(elements.diaryOverlay.hidden, true, "点击遮罩应关闭开发者日记");
 
@@ -831,17 +831,19 @@ const completedRunMetrics = {
   logs: game.state.logs.length
 };
 
-// 死亡只是幻觉结束：玩家醒来后仍会走完现实归途。
+// 死亡结局停在幻境：不梦醒、不回村；出口路径才走醒来。
 game.startNewGame();
 dismissAllStories();
 game.endGame("你倒在了迷宫深处", false);
 assert.equal(elements.storyOverlay.hidden, false);
+assert.ok(elements.storyKicker.textContent.includes("沉没") || elements.storyKicker.textContent.includes("结局"), "死亡结局应用冷色死亡钩子");
+assert.equal(elements.storyKicker.textContent.includes("梦醒"), false);
 assert.ok(elements.storyText.textContent.includes("你倒在了迷宫深处"));
-assert.ok(elements.storyText.textContent.includes("现实归途的开始"));
-assert.ok(elements.storyKicker.textContent.includes("梦醒"));
+assert.ok(elements.storyText.textContent.includes("暗红走廊没有碎裂"));
+assert.equal(elements.storyText.textContent.includes("现实归途的开始"), false);
+assert.equal(elements.storyText.textContent.includes("回村"), false);
 dismissAllStories();
-assert.ok(elements.endReveal.textContent.includes("真实路线"));
-assert.equal(elements.endReveal.textContent.includes("无法回应"), false);
+assert.ok(elements.endReveal.textContent.includes("没有醒来") || elements.endReveal.textContent.includes("吹不到这里"));
 
 // 日志越过容量上限后仍持续刷新，浏览旧记录时仍提示新事件。
 game.startNewGame();

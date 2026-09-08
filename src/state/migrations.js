@@ -82,6 +82,8 @@ export function restoreState(state) {
   state.fearDrainMilestone = Number.isFinite(state.fearDrainMilestone)
     ? state.fearDrainMilestone
     : Math.floor((Number.isFinite(state.totalSteps) ? state.totalSteps : 0) / 100);
-  state.fearTier = Number.isFinite(state.fearTier) ? state.fearTier : (state.fear <= 20 ? 4 : state.fear <= 40 ? 3 : state.fear <= 60 ? 2 : state.fear <= 80 ? 1 : 0);
+  state.fearTier = Number.isFinite(state.fearTier) ? state.fearTier : (state.fear < 20 ? 4 : state.fear < 40 ? 3 : state.fear < 60 ? 2 : state.fear < 80 ? 1 : 0);
+  state.fearCalmTurns = Number.isFinite(state.fearCalmTurns) ? state.fearCalmTurns : 0;
+  state.spiritIntroSeen = Boolean(state.spiritIntroSeen);
   return state;
 }

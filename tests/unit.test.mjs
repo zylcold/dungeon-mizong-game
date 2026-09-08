@@ -7,7 +7,8 @@ import { restoreState } from "../src/state/migrations.js";
 import { SaveStore } from "../src/state/save-store.js";
 import { DEV_DIARY } from "../src/data/dev-diary.js";
 import { SAVE_VERSION, STORAGE_KEY, RECORD_KEY, STORY_TRIGGER_VERSION, APP_VERSION } from "../src/config.js";
-import { fearHpPerStep } from "../src/systems/fear.js";
+import { fearHpPerTurn } from "../src/systems/fear.js";
+import { getEnding } from "../src/data/endings.js";
 
 test("迷宫模块不依赖 DOM，同一种子生成相同拓扑和实体", () => {
   const first = generateMaze(20260904);
@@ -122,12 +123,21 @@ test("旧档已有 F1 flag 且停在 F1 时跳到 M3，不重弹", () => {
 });
 
 
-test("恐惧档位扣血含边界：100 免伤，≤80/60/40/20 可叠加", () => {
-  assert.equal(fearHpPerStep(100), 0);
-  assert.equal(fearHpPerStep(81), 0);
-  assert.equal(fearHpPerStep(80), 1);
-  assert.equal(fearHpPerStep(60), 2);
-  assert.equal(fearHpPerStep(40), 3);
-  assert.equal(fearHpPerStep(20), 4);
-  assert.equal(fearHpPerStep(0), 4);
+test("心神仅 <60 每回合扣 1 HP", () => {
+  assert.equal(fearHpPerTurn(100), 0);
+  assert.equal(fearHpPerTurn(60), 0);
+  assert.equal(fearHpPerTurn(59), 1);
+  assert.equal(fearHpPerTurn(0), 1);
+});
+
+test("死亡结局不写梦醒回村；出口仍走醒来", () => {
+  const dead = getEnding("心神崩溃", false);
+  assert.equal(dead.id, "ending-dead");
+  assert.equal(dead.mode, "death");
+  assert.equal(dead.text.includes("梦醒"), false);
+  assert.equal(dead.text.includes("回村"), false);
+  assert.ok(dead.text.includes("暗红走廊没有碎裂"));
+  const lived = getEnding("出口", true);
+  assert.equal(lived.id, "ending-escaped");
+  assert.ok(lived.text.includes("天光"));
 });
