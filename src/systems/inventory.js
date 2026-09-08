@@ -42,8 +42,9 @@ export class InventorySystem {
       return;
     }
     if (itemType === "potion") {
-      if (this.game.state.hp >= this.game.state.maxHp) {
-        this.game.ui.showToast("生命值已满");
+      const fear = Number.isFinite(this.game.state.fear) ? this.game.state.fear : 100;
+      if (this.game.state.hp >= this.game.state.maxHp && fear >= 100) {
+        this.game.ui.showToast("生命与心神已满");
         return;
       }
     }
@@ -55,15 +56,21 @@ export class InventorySystem {
       this.game.state.inventory.potion -= 1;
       const healed = Math.min(30, this.game.state.maxHp - this.game.state.hp);
       this.game.state.hp += healed;
-      this.game.ui.addLog("heal", "✚", `使用恢复药剂，恢复 ${healed} 点生命`);
-      this.game.ui.showToast(`恢复 ${healed} HP`);
+      this.game.fear.onPotion();
+      const parts = [];
+      if (healed > 0) parts.push(`恢复 ${healed} 点生命`);
+      parts.push("心神 +20");
+      this.game.ui.addLog("heal", "✚", `使用恢复药剂，${parts.join("，")}`);
+      this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP · 心神 +20` : "心神 +20");
     } else if (itemType === "vision") {
+      const wasEnhanced = this.game.state.visionTurns > 0;
       this.game.state.inventory.vision -= 1;
       this.game.state.visionTurns = clamp(this.game.state.visionTurns + VISION_DURATION, VISION_DURATION, VISION_DURATION * 2);
       this.game.state.fogTurns = 0;
       this.game.vision.updateVisibility();
+      this.game.fear.onVisionRestoredToFull(wasEnhanced);
       this.game.ui.addLog("vision", "◉", `迷雾暂时关闭，主地图缩小 50%，持续 ${this.game.state.visionTurns} 步`);
-      this.game.ui.showToast("迷雾关闭 · 地图缩小 50%");
+      this.game.ui.showToast(wasEnhanced ? "迷雾关闭 · 地图缩小 50%" : "迷雾关闭 · 心神 +15");
     } else if (itemType === "teleport") {
       this.game.state.inventory.teleport -= 1;
       this.teleportPlayer("瞬移卷轴");
