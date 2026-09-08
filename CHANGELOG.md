@@ -1,5 +1,10 @@
 # 版本记录
 
+## 1.13.2
+
+- 修复故事层「继续」/分叉按钮点不动：`.story-vignette` 设为 `pointer-events: none`，卡片与按钮抬高层级。
+- 「继续」与 ChoiceBar 热区 ≥44px，并补充 `:active` 反馈。
+
 ## 1.13.1
 
 - 任意两次演出（主线 + lore）全局至少间隔 10 步；同一步不连弹；`M0`/`E` 豁免；`ChoiceBar→echo` 同次交互可紧接。

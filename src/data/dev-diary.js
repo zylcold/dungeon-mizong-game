@@ -8,6 +8,15 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.13.2",
+    date: "2026-09",
+    title: "修复演出层无法点击",
+    items: [
+      { kind: "fix", text: "故事遮罩层不再拦截点击，继续与分叉按钮可正常点按" },
+      { kind: "improve", text: "继续 / 分叉按钮热区至少 44px，按下有明确反馈" }
+    ]
+  },
+  {
     version: "1.13.1",
     date: "2026-09",
     title: "演出降频与双栏去标签",
