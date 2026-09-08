@@ -1,5 +1,5 @@
 /** 剧情即时演出：触发即播，条件不满足直接跳过，等下次同类触发再走完整逻辑；不维护演出队列。 */
-import { NORMAL_STORY_MIN_GAP_STEPS } from "../config.js";
+import { GLOBAL_STORY_MIN_GAP_STEPS, NORMAL_STORY_MIN_GAP_STEPS } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { MAINLINE_BEATS } from "../data/mainline.js";
@@ -135,10 +135,18 @@ export class StorySystem {
   }
 
   /**
-   * 主线节点通道：始终 special，绕过普通 20 步冷却；同一步/遮罩互斥仍生效。
+   * 主线节点通道：special 可绕过 lore 的 20 步冷却，但仍受全局 10 步间隔（M0/E 豁免）。
    */
   tryPlayMainBeat(scene, options = {}) {
     return this.tryPlayStory(scene, { ...options, special: true });
+  }
+
+  isGapExempt(scene) {
+    const id = scene && scene.id ? String(scene.id) : "";
+    if (id === "main-M0" || id.startsWith("main-M0") || id.startsWith("intro-")) return true;
+    if (id.startsWith("ending-")) return true;
+    if (scene && scene.beatId === "M0") return true;
+    return false;
   }
 
   pickStoryVariant(sceneKey, story) {
@@ -218,6 +226,10 @@ export class StorySystem {
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
     if (this.game.state.totalSteps === lastStep) return false;
+    // 全局间隔：任意两次演出至少 GLOBAL 步（含主线 special）；M0/E 豁免。
+    // ChoiceBar→echo 通过回拨 lastStoryStep 实现同次交互紧接。
+    if (!this.isGapExempt(scene) && this.game.state.totalSteps - lastStep < GLOBAL_STORY_MIN_GAP_STEPS) return false;
+    // 填充 lore 额外保持 20 步普通冷却。
     if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     if (!this.showStory(scene)) return false;
     this.game.state.lastStoryStep = this.game.state.totalSteps;
