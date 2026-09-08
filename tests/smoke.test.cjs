@@ -126,7 +126,7 @@ class MockElement {
 
 const elementIds = [
   "gameShell", "stage", "gameCanvas", "minimapCanvas", "minimapButton", "fullMapCanvas", "endMapCanvas",
-  "floorValue", "healthText", "healthFill", "stepsValue", "statusChip", "eventLog", "newEventBadge",
+  "floorValue", "healthText", "healthFill", "fearText", "fearFill", "fearTrack", "fearFloat", "stepsValue", "statusChip", "eventLog", "newEventBadge",
   "encounterCard", "encounterIcon", "encounterKicker", "encounterTitle", "encounterDescription",
   "encounterOutcome", "encounterActions", "encounterClose", "startOverlay", "continueButton", "newGameButton",
   "bestRecord", "diaryOverlay", "diaryClose", "diaryList", "diaryButton", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
@@ -230,14 +230,14 @@ assert.equal(elements.diaryOverlay.hidden, true, "新玩家首次进入不应自
 store.set("dungeon-mizong-diary-v1", "1.11.0");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, false, "升级后首次进入应自动展示开发者日记");
-assert.equal(store.get("dungeon-mizong-diary-v1"), "1.13.3", "展示后应记录已读版本");
+assert.equal(store.get("dungeon-mizong-diary-v1"), "1.14.0", "展示后应记录已读版本");
 elements.diaryClose.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, true, "关闭按钮应关闭开发者日记");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, true, "同一版本只自动展示一次");
 elements.diaryButton.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, false, "开始界面入口可随时打开开发者日记");
-assert.equal(elements.diaryList.children.length, 6, "开发者日记应包含六个版本的记录");
+assert.equal(elements.diaryList.children.length, 7, "开发者日记应包含七个版本的记录");
 elements.diaryOverlay.listeners.click[0]({ target: elements.diaryOverlay });
 assert.equal(elements.diaryOverlay.hidden, true, "点击遮罩应关闭开发者日记");
 
@@ -408,6 +408,10 @@ function resolvePending() {
 function walkTo(target, maxMoves = 800) {
   let moves = 0;
   while ((game.state.player.x !== target.x || game.state.player.y !== target.y) && moves++ < maxMoves) {
+    // 长路径测可达性时钉满心神，避免档位扣血中途拖死。
+    game.state.fear = 100;
+    game.state.fearTier = 0;
+    if (game.state.hp < 30) game.state.hp = game.state.maxHp;
     const route = findPath(game.state, target);
     assert.ok(route.length >= 2, `目标 ${key(target.x, target.y)} 应可达`);
     game.movement.attemptMove(directionBetween(route[0], route[1]));
