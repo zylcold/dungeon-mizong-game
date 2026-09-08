@@ -184,6 +184,8 @@ export class MovementSystem {
     if (targetKey !== previousKey) this.game.state.dismissedKey = null;
     this.tickEffects();
     if (!this.game.state.active) return false;
+    this.game.fear.onMove();
+    if (!this.game.state.active) return false;
     this.game.vision.updateVisibility();
     if (!options.skipTrigger) this.game.events.triggerCurrentRoom();
     this.game.story.maybeAddAmbientLog();
