@@ -77,5 +77,11 @@ export function restoreState(state) {
     if (state.loreSeen.includes(key) && !anchors.includes(key)) anchors.push(key);
   });
   state.realityAnchors = anchors;
+  // 1.14.0 恐惧值：旧档缺字段时按满心神接入，不回溯扣血。
+  state.fear = Number.isFinite(state.fear) ? Math.max(0, Math.min(100, state.fear)) : 100;
+  state.fearDrainMilestone = Number.isFinite(state.fearDrainMilestone)
+    ? state.fearDrainMilestone
+    : Math.floor((Number.isFinite(state.totalSteps) ? state.totalSteps : 0) / 100);
+  state.fearTier = Number.isFinite(state.fearTier) ? state.fearTier : (state.fear <= 20 ? 4 : state.fear <= 40 ? 3 : state.fear <= 60 ? 2 : state.fear <= 80 ? 1 : 0);
   return state;
 }
