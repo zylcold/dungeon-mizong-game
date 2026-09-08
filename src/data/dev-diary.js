@@ -8,6 +8,17 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.13.1",
+    date: "2026-09",
+    title: "演出降频与双栏去标签",
+    items: [
+      { kind: "improve", text: "任意两次演出（含主线）全局至少间隔 10 步，减少连续弹窗；开场与结局豁免" },
+      { kind: "improve", text: "分叉选择后的回响仍可紧接，回响结束后下一主线再计间隔" },
+      { kind: "improve", text: "双栏对照不再显示「幻觉 / 现实」标签，只靠暖红 / 冷青版式区分" },
+      { kind: "improve", text: "分叉按钮文案去掉「幻觉」「现实」字样" }
+    ]
+  },
+  {
     version: "1.13.0",
     date: "2026-09",
     title: "故事主线与演出专版",

@@ -34,8 +34,8 @@ export const MAINLINE_BEATS = {
     kicker: "分叉 · 信谁",
     text: "下一段路在发亮。一边是更深的钟声，一边是岩壁折回的犬吠。",
     choices: [
-      { id: "illusion", label: "追幻觉更深", echo: "你跟着钟声走。剑更沉，痛却更远。", nextBeat: "M3a" },
-      { id: "reality", label: "抓住现实线索", echo: "你循着犬吠摸石壁。泥腥味比铁锈更像回家。", nextBeat: "M3b" }
+      { id: "illusion", label: "追钟声更深", echo: "你跟着钟声走。剑更沉，痛却更远。", nextBeat: "M3a" },
+      { id: "reality", label: "循犬吠寻路", echo: "你循着犬吠摸石壁。泥腥味比铁锈更像回家。", nextBeat: "M3b" }
     ],
     flagKey: "F1"
   },

@@ -7,13 +7,16 @@ export const RECORD_KEY = "dungeon-mizong-records-v1";
 
 export const DIARY_KEY = "dungeon-mizong-diary-v1";
 
-export const APP_VERSION = "1.13.0";
+export const APP_VERSION = "1.13.1";
 
 export const SAVE_VERSION = 4;
 
 export const STORY_TRIGGER_VERSION = 3;
 
 export const NORMAL_STORY_MIN_GAP_STEPS = 20;
+
+/** 任意两次演出（含主线 special）的全局最小间隔；M0/E 豁免。 */
+export const GLOBAL_STORY_MIN_GAP_STEPS = 10;
 
 export const MAZE_SIZE = 135;
 

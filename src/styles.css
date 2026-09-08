@@ -686,14 +686,6 @@ button:focus-visible,
   transform: translateY(0);
 }
 
-.story-dual-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  opacity: 0.78;
-}
 
 .story-dual-text {
   margin: 0;
