@@ -8,6 +8,15 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.13.3",
+    date: "2026-09",
+    title: "分叉选择锁死",
+    items: [
+      { kind: "fix", text: "修复主线分叉选项反复弹出：选定后立即推进主线，本局不再重播" },
+      { kind: "fix", text: "旧存档若已选过分叉但仍停在分叉节点，接入时自动跳到下一主线" }
+    ]
+  },
+  {
     version: "1.13.2",
     date: "2026-09",
     title: "修复演出层无法点击",
