@@ -1253,3 +1253,24 @@ button:focus-visible,
   0% { filter: hue-rotate(-12deg) brightness(1.15); }
   100% { filter: none; }
 }
+
+
+.story-overlay.mode-death {
+  background: #02060a;
+}
+
+.story-overlay.mode-death .story-vignette {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(40, 70, 90, 0.22), transparent 35%),
+    radial-gradient(circle at 50% 50%, transparent 22%, rgba(0, 0, 0, 0.96) 76%);
+}
+
+.story-overlay.mode-death .story-kicker {
+  color: #6f8fa3;
+}
+
+.story-overlay.mode-death .story-continue {
+  border-color: rgba(110, 148, 164, 0.55);
+  background: rgba(28, 48, 58, 0.55);
+  color: #d5e2e8;
+}
