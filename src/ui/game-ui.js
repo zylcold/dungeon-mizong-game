@@ -134,7 +134,7 @@ export class GameUI {
     if (this.dom.fearText) this.dom.fearText.textContent = String(fear);
     if (this.dom.fearFill) {
       this.dom.fearFill.style.width = `${clamp(fear, 0, 100)}%`;
-      const tier = fear <= 20 ? 4 : fear <= 40 ? 3 : fear <= 60 ? 2 : fear <= 80 ? 1 : 0;
+      const tier = fear < 20 ? 4 : fear < 40 ? 3 : fear < 60 ? 2 : fear < 80 ? 1 : 0;
       this.dom.fearFill.dataset.tier = String(tier);
     }
     if (this.dom.fearTrack) this.dom.fearTrack.setAttribute("aria-valuenow", String(fear));
