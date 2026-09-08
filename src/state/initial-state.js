@@ -27,6 +27,10 @@ export function createInitialState() {
     discoveredExits: [],
     storyScenes: [],
     loreSeen: [],
+    // 1.13.0 主线进度：从 M0 起；分叉本局锁死；现实锚点由关键 lore 写入。
+    mainBeat: "M0",
+    branchFlags: { F1: null, F2: null },
+    realityAnchors: [],
     storyTriggerVersion: STORY_TRIGGER_VERSION,
     lastStoryStep: -NORMAL_STORY_MIN_GAP_STEPS,
     lastNormalStoryStep: 0,
