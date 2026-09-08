@@ -1153,3 +1153,13 @@ button:focus-visible,
   color: var(--danger);
   border: 1px solid rgba(239, 88, 88, 0.45);
 }
+
+
+.story-overlay.mode-echo .story-vignette {
+  animation: story-echo-flash 520ms ease;
+}
+
+@keyframes story-echo-flash {
+  0% { filter: hue-rotate(-12deg) brightness(1.15); }
+  100% { filter: none; }
+}
