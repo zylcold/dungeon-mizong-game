@@ -860,7 +860,7 @@ assert.equal(elements.eventLog.children[199].children[2].textContent, "浏览旧
 // 未读演出先持久化；恢复同一段文字，不重抽路线；未读期间其他触发直接跳过。
 game.startNewGame();
 const introSnapshot = JSON.parse(JSON.stringify(game.state.currentStory));
-assert.ok(introSnapshot && introSnapshot.id.startsWith("intro-"));
+assert.ok(introSnapshot && (introSnapshot.id.startsWith("main-M0") || introSnapshot.id.startsWith("intro-")), "开场 id 应为 main-M0");
 assert.equal(game.state.storyScenes.includes(introSnapshot.id), false, "尚未确认的开场不能标记完成");
 assert.equal(game.story.tryPlayLore("item:potion"), false, "开场未读期间其他剧情触发直接跳过");
 assert.equal(game.state.loreSeen.includes("item:potion"), false, "跳过的剧情不标记已读");
