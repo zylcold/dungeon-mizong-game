@@ -8,6 +8,18 @@ export const DIARY_ITEM_LABELS = {
 
 export const DEV_DIARY = [
   {
+    version: "1.13.0",
+    date: "2026-09",
+    title: "故事主线与演出专版",
+    items: [
+      { kind: "new", text: "新增可读主线「坠谷→幻境→苏醒」：章节卡、双栏幻/现实、分叉选择三种演出节奏" },
+      { kind: "new", text: "新增两条可见分叉（信谁 / 留下什么），现实锚点可解锁额外选项；结局文案随路径变体" },
+      { kind: "improve", text: "主线节点走 special 通道，不被普通 20 步冷却吞没；填充 lore 仍保持间隔节奏" },
+      { kind: "improve", text: "存档增加 mainBeat、branchFlags、realityAnchors；旧档缺字段可安全接入，不编造历史分叉" },
+      { kind: "improve", text: "玩法数值（迷宫/战斗/事件/道具）本版未改，专注故事与演出" }
+    ]
+  },
+  {
     version: "1.12.0",
     date: "2026-09",
     title: "开发者日记与剧情节奏重做",

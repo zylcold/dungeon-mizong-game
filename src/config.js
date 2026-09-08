@@ -7,7 +7,7 @@ export const RECORD_KEY = "dungeon-mizong-records-v1";
 
 export const DIARY_KEY = "dungeon-mizong-diary-v1";
 
-export const APP_VERSION = "1.12.0";
+export const APP_VERSION = "1.13.0";
 
 export const SAVE_VERSION = 4;
 

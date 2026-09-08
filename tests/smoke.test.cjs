@@ -230,14 +230,14 @@ assert.equal(elements.diaryOverlay.hidden, true, "新玩家首次进入不应自
 store.set("dungeon-mizong-diary-v1", "1.11.0");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, false, "升级后首次进入应自动展示开发者日记");
-assert.equal(store.get("dungeon-mizong-diary-v1"), "1.12.0", "展示后应记录已读版本");
+assert.equal(store.get("dungeon-mizong-diary-v1"), "1.13.0", "展示后应记录已读版本");
 elements.diaryClose.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, true, "关闭按钮应关闭开发者日记");
 game.devDiary.maybeShowOnLaunch();
 assert.equal(elements.diaryOverlay.hidden, true, "同一版本只自动展示一次");
 elements.diaryButton.listeners.click[0]();
 assert.equal(elements.diaryOverlay.hidden, false, "开始界面入口可随时打开开发者日记");
-assert.equal(elements.diaryList.children.length, 2, "开发者日记应包含两个版本的记录");
+assert.equal(elements.diaryList.children.length, 3, "开发者日记应包含三个版本的记录");
 elements.diaryOverlay.listeners.click[0]({ target: elements.diaryOverlay });
 assert.equal(elements.diaryOverlay.hidden, true, "点击遮罩应关闭开发者日记");
 
