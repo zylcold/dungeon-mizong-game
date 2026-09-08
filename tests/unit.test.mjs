@@ -32,14 +32,41 @@ test("纯战斗计算包含本步毒伤且不会修改状态", () => {
 
 test("旧存档迁移幂等，并保留未读文本与冷却起点", () => {
   const scene = { id: "first-item", kicker: "片段", text: "已经抽取的文本" };
-  const old = { totalSteps: 45, currentStory: scene, lastStoryStep: 30, loreSeen: ["enemy:rat", "event:chest"] };
+  const old = { totalSteps: 45, currentStory: scene, lastStoryStep: 30, loreSeen: ["enemy:rat", "event:chest", "event:echo"] };
   const state = restoreState(old);
-  assert.equal(state.currentStory, scene);
+  assert.equal(state.currentStory.id, scene.id);
+  assert.equal(state.currentStory.kicker, scene.kicker);
+  assert.equal(state.currentStory.text, scene.text);
   assert.equal(state.lastStoryStep, 30);
   assert.equal(state.storyTriggerVersion, STORY_TRIGGER_VERSION);
-  assert.deepEqual(state.loreSeen, ["event:chest"]);
+  assert.deepEqual(state.loreSeen, ["event:chest", "event:echo"]);
+  // 1.13.0：缺主线字段时安全接入，不编造分叉；按步数/lore 接到下一节点。
+  assert.equal(state.mainBeat, "M2");
+  assert.deepEqual(state.branchFlags, { F1: null, F2: null });
+  assert.deepEqual(state.realityAnchors, ["event:echo"]);
   const snapshot = JSON.stringify(state);
   assert.equal(JSON.stringify(restoreState(state)), snapshot);
+});
+
+test("旧存档 currentStory 可携带 mode/choices 并在恢复时保留", () => {
+  const scene = {
+    id: "f1-choice",
+    kicker: "分叉 · 信谁",
+    text: "下一段路在发亮。",
+    mode: "choiceBar",
+    choices: [
+      { id: "illusion", label: "追幻觉更深" },
+      { id: "reality", label: "抓住现实线索" }
+    ]
+  };
+  const state = restoreState({
+    totalSteps: 80,
+    currentStory: scene,
+    loreSeen: ["event:chest", "event:fog", "event:map"]
+  });
+  assert.equal(state.currentStory.mode, "choiceBar");
+  assert.equal(state.currentStory.choices.length, 2);
+  assert.equal(state.mainBeat, "F1");
 });
 
 test("存储层独立保存、读取与结算，只清除当前进度", () => {

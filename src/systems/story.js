@@ -11,6 +11,9 @@ const STORY_VARIANT_FILLERS = [
 ];
 const STORY_VARIANT_DEFAULT = "你在黑暗里停住呼吸，确认自己仍要继续向前。";
 
+/** 计入 realityAnchors 的现实锚点 lore key（与产品 F2 第三选项对齐）。 */
+export const REALITY_ANCHOR_KEYS = ["event:echo", "item:potion", "event:cache"];
+
 export class StorySystem {
   constructor(game) {
     this.game = game;
@@ -113,12 +116,24 @@ export class StorySystem {
 
   playOpeningStory() {
     const variant = this.pickStoryVariant("intro", OPENING_STORY);
-    return this.tryPlayStory({
+    // M0 走主线 special 通道，不受 20 步普通冷却影响。
+    return this.tryPlayMainBeat({
       id: `intro-${variant.key}`,
       kicker: "序章 · 醒来",
       text: variant.text,
-      buttonLabel: "开始探索"
-    }, { special: true });
+      buttonLabel: "开始探索",
+      mode: "storyCard",
+      beatId: "M0",
+      nextBeat: "M1"
+    });
+  }
+
+  /**
+   * 主线节点通道：始终 special，绕过普通 20 步冷却；同一步/遮罩互斥仍生效。
+   * scene 可带 mode / choices，写入 currentStory 以便刷新恢复 ChoiceBar。
+   */
+  tryPlayMainBeat(scene, options = {}) {
+    return this.tryPlayStory(scene, { ...options, special: true });
   }
 
   tryPlayLore(loreKey) {
@@ -133,11 +148,18 @@ export class StorySystem {
       id: `lore-${sceneId}-${variant.key}`,
       kicker: `残缺片段 · ${lore.title}`,
       text: variant.text,
-      buttonLabel: "继续"
+      buttonLabel: "继续",
+      mode: "lore"
     });
     // 只有真正演出过才标记 loreSeen；被跳过的片段留待下次同类触发重试。
     if (played) {
       this.game.state.loreSeen.push(loreKey);
+      this.game.state.realityAnchors = Array.isArray(this.game.state.realityAnchors)
+        ? this.game.state.realityAnchors
+        : [];
+      if (REALITY_ANCHOR_KEYS.includes(loreKey) && !this.game.state.realityAnchors.includes(loreKey)) {
+        this.game.state.realityAnchors.push(loreKey);
+      }
       this.game.save();
     }
     return played;
@@ -153,6 +175,7 @@ export class StorySystem {
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
     // 同一步绝不连弹；普通演出至少间隔 20 步，间隔内触发直接跳过、不排队。
+    // 主线 special（含 tryPlayMainBeat）不受普通冷却限制。
     if (this.game.state.totalSteps === lastStep) return false;
     if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     if (!this.showStory(scene)) return false;
@@ -169,11 +192,33 @@ export class StorySystem {
     return this.showStory(this.game.state.currentStory);
   }
 
-  showStory({ id, kicker, text, buttonLabel = "继续", onClose = null, markIds = [] }) {
+  showStory({
+    id,
+    kicker,
+    text,
+    buttonLabel = "继续",
+    onClose = null,
+    markIds = [],
+    mode = "lore",
+    choices = null,
+    beatId = null,
+    nextBeat = null
+  }) {
     if (!this.dom.storyOverlay.hidden) return false;
     this.game.movement.cancelAutoPath();
     if (this.game.state && this.game.state.active) {
-      this.game.state.currentStory = { id, kicker, text, buttonLabel, markIds: Array.isArray(markIds) ? markIds : [] };
+      const payload = {
+        id,
+        kicker,
+        text,
+        buttonLabel,
+        markIds: Array.isArray(markIds) ? markIds : [],
+        mode: typeof mode === "string" ? mode : "lore"
+      };
+      if (Array.isArray(choices)) payload.choices = choices;
+      if (typeof beatId === "string") payload.beatId = beatId;
+      if (typeof nextBeat === "string") payload.nextBeat = nextBeat;
+      this.game.state.currentStory = payload;
     }
     this.dom.storyKicker.textContent = kicker;
     this.dom.storyText.textContent = text;
@@ -198,6 +243,12 @@ export class StorySystem {
       [scene.id].concat(scene.markIds || []).forEach((sceneId) => {
         if (sceneId && !this.game.state.storyScenes.includes(sceneId)) this.game.state.storyScenes.push(sceneId);
       });
+      // 主线节点关闭后推进 mainBeat（若场景声明了 nextBeat）。
+      if (typeof scene.nextBeat === "string" && scene.nextBeat) {
+        this.game.state.mainBeat = scene.nextBeat;
+      } else if (typeof scene.beatId === "string" && scene.beatId === "M0") {
+        this.game.state.mainBeat = "M1";
+      }
       this.game.state.currentStory = null;
       this.game.save();
     }
