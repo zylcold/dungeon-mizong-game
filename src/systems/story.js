@@ -175,6 +175,7 @@ export class StorySystem {
   isGapExempt(scene) {
     const id = scene && scene.id ? String(scene.id) : "";
     if (id === "main-M0" || id.startsWith("main-M0") || id.startsWith("intro-")) return true;
+    if (id.startsWith("sidequest-")) return true;
     if (id.startsWith("ending-")) return true;
     if (id === "spirit-intro" || (scene && scene.spiritIntro)) return true;
     if (scene && scene.beatId === "M0") return true;
