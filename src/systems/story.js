@@ -3,7 +3,7 @@ import { GLOBAL_STORY_MIN_GAP_STEPS, NORMAL_STORY_MIN_GAP_STEPS } from "../confi
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { MAINLINE_BEATS } from "../data/mainline.js";
-import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
+import { LORE_SCENES, SHRINE_SIDEQUEST_SCENE, STORY_SCENES } from "../data/stories.js";
 
 const STORY_VARIANT_FILLERS = [
   "你停下半息，确认这段念头还在脑海里。",
@@ -224,6 +224,19 @@ export class StorySystem {
     return unique.slice(0, 5);
   }
 
+  tryPlayShrineSidequest() {
+    if (!this.game.state || !this.game.state.active) return false;
+    this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
+    if (this.game.state.storyScenes.includes(SHRINE_SIDEQUEST_SCENE.id)) return false;
+    return this.tryPlayStory({
+      id: SHRINE_SIDEQUEST_SCENE.id,
+      kicker: SHRINE_SIDEQUEST_SCENE.kicker,
+      text: SHRINE_SIDEQUEST_SCENE.text,
+      buttonLabel: SHRINE_SIDEQUEST_SCENE.buttonLabel,
+      markIds: [SHRINE_SIDEQUEST_SCENE.id]
+    }, { special: true, forceStep: true });
+  }
+
   tryPlayLore(loreKey) {
     if (!this.game.state || !this.game.state.active) return false;
     const lore = LORE_SCENES[loreKey];
@@ -256,16 +269,15 @@ export class StorySystem {
     if (!this.game.state || !this.game.state.active) return false;
     if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
     if (this.game.state.currentStory) return false;
-    const special = Boolean(options.special) || /^intro-|^ending-|^main-/u.test(scene.id);
+    const special = Boolean(options.special) || /^intro-|^ending-|^main-|^sidequest-/u.test(scene.id);
     const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -NORMAL_STORY_MIN_GAP_STEPS;
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
-    if (this.game.state.totalSteps === lastStep) return false;
+    if (!options.forceStep && this.game.state.totalSteps === lastStep) return false;
     // 全局间隔：任意两次演出至少 GLOBAL 步（含主线 special）；M0/E 豁免。
-    // ChoiceBar→echo 通过回拨 lastStoryStep 实现同次交互紧接。
+    // ChoiceBar→echo 通过回拨 lastStoryStep 实现同次交互紧接；支线 forceStep 豁免同步锁但仍守全局间隔。
     if (!this.isGapExempt(scene) && this.game.state.totalSteps - lastStep < GLOBAL_STORY_MIN_GAP_STEPS) return false;
-    // 填充 lore 额外保持 20 步普通冷却。
     if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     if (!this.showStory(scene)) return false;
     this.game.state.lastStoryStep = this.game.state.totalSteps;

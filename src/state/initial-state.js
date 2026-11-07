@@ -25,6 +25,7 @@ export function createInitialState(customSeed = null, seedMode = "normal") {
     fogTurns: 0,
     poisonTurns: 0,
     exitHintTurns: 0,
+    shrineSacrifices: 0,
     player: { x: center, y: center },
     explored: [],
     path: [{ x: center, y: center, teleport: false }],

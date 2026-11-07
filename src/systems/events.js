@@ -299,10 +299,21 @@ export class EventSystem {
     this.game.state.hp -= 12;
     this.game.state.maxHp += 15;
     this.game.state.hp += 15;
+    this.game.state.shrineSacrifices = (this.game.state.shrineSacrifices || 0) + 1;
     delete this.game.state.maze.entities[key];
     this.game.ui.addLog("system", "◇", "完成献祭，生命上限增加 15");
+    if (this.game.state.shrineSacrifices === 2) {
+      this.game.ui.addLog("vision", "◇", "石龛上的香灰无风自动，你似乎认出了底座下压着的那枚铜钱");
+    } else if (this.game.state.shrineSacrifices === 3) {
+      this.pendingLoreKey = null;
+      this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 45);
+      this.game.ui.addLog("vision", "◇", "记起土地龛下的旧愿，出口指引强化 45 步");
+    }
     this.game.ui.showToast("生命上限 +15");
     this.finishEncounter();
+    if (this.game.state.shrineSacrifices === 3) {
+      this.game.story.tryPlayShrineSidequest();
+    }
   }
 
   searchCorpse(key) {
