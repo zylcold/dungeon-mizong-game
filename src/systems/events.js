@@ -84,14 +84,14 @@ export class EventSystem {
         const damage = 8 + Math.floor(this.eventRoll(key, "trap") * 8);
         this.game.state.hp = Math.max(1, this.game.state.hp - damage);
         delete this.game.state.maze.entities[key];
-        this.game.ui.addLog("damage", definition.icon, `触发地刺陷阱，损失 ${damage} 点生命`);
+        this.game.ui.addLog("damage", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}触发地刺陷阱，损失 ${damage} 点生命`);
         this.game.ui.showToast(`地刺陷阱：-${damage} HP`);
         break;
       }
       case "map":
         this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 30);
         delete this.game.state.maze.entities[key];
-        this.game.ui.addLog("vision", definition.icon, "读懂地图残片，出口箭头强化 30 步");
+        this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}读懂地图残片，出口箭头强化 30 步`);
         this.game.ui.showToast("出口箭头已强化");
         break;
       case "shrine":
@@ -129,7 +129,7 @@ export class EventSystem {
         this.game.state.fogTurns = Math.max(this.game.state.fogTurns, 15);
         delete this.game.state.maze.entities[key];
         this.game.vision.updateVisibility();
-        this.game.ui.addLog("vision", definition.icon, "浓雾笼罩四周，视野降为 1 格，持续 15 步");
+        this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}浓雾笼罩四周，视野降为 1 格，持续 15 步`);
         this.game.ui.showToast("视野降为 1 格");
         break;
       case "portal":
@@ -178,7 +178,7 @@ export class EventSystem {
         });
         break;
       case "echo": {
-        const echoes = [
+        const echoes = EVENT_COPY.echo || [
           "回声里有人喊着你的名字，声音来自迷宫边缘。",
           "乌鸦叫声与村人的呼喊重叠了一瞬。",
           "风穿过高处岩缝，替你指出了一个大致方向。"
