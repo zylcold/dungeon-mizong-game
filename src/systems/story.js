@@ -53,6 +53,13 @@ export class StorySystem {
     this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
     const healthRatio = this.game.state.hp / Math.max(1, this.game.state.maxHp);
     const previousLow = Number.isFinite(this.game.state.hpStoryRatioLow) ? this.game.state.hpStoryRatioLow : 1;
+    if (healthRatio > previousLow) {
+      // 回血后抬升下探水位线，避免因主动作/冷却被跳过的阈值在回血再受伤后永久锁死；
+      // 未回血的原地移动（healthRatio === previousLow）仍直接返回、绝不延迟补播。
+      this.game.state.hpStoryRatioLow = healthRatio;
+      this.game.save();
+      return;
+    }
     if (healthRatio >= previousLow) return;
     this.game.state.hpStoryRatioLow = healthRatio;
     this.game.save();
@@ -61,7 +68,8 @@ export class StorySystem {
       healthRatio <= scene.threshold && !this.game.state.storyScenes.includes(scene.id)
     ));
     if (!eligible.length) return;
-    const scene = eligible[eligible.length - 1];
+    // 按 75% → 50% → 25% 顺序依次补齐尚未演出的记忆残片，避免大额受伤直接跳过前序片段。
+    const scene = eligible[0];
     const variant = this.pickStoryVariant(scene.id, scene);
     this.tryPlayStory({
       id: `${scene.id}-${variant.key}`,
@@ -202,11 +210,15 @@ export class StorySystem {
     if (story?.allowAutoVariants === false) return unique.slice(0, 5);
     const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
-    if (unique.length >= 2) [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
+    // 禁止将 illusion 与 reality 拼接到同一次演出中剧透双线对照；
+    // 若独立候选不足 3 条，仅在单视角基底后追加氛围余韵段以补齐候选池。
     if (unique.length < 3) {
-      const paddedBase = this.clipStoryParagraphs(baseA || STORY_VARIANT_DEFAULT, 2);
-      STORY_VARIANT_FILLERS.forEach((filler) => {
-        if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
+      const bases = [baseA, baseB];
+      STORY_VARIANT_FILLERS.forEach((filler, index) => {
+        if (unique.length < 4) {
+          const paddedBase = this.clipStoryParagraphs(bases[index % bases.length] || STORY_VARIANT_DEFAULT, 2);
+          pushUnique(`${paddedBase}\n\n${filler}`);
+        }
       });
     }
     return unique.slice(0, 5);
