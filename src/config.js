@@ -58,6 +58,12 @@ export const SHRINE_COSTS = [12, 18, 24];
 
 export const SHRINE_MAX_HP_GAINS = [15, 20, 25];
 
+export const ECHO_SHARD_COUNT = 3;
+
+export const ECHO_SHARD_MIN_DIST = 28;
+
+export const ECHO_SHARD_MAX_DIST = 62;
+
 export const EXIT_SAFE_RADIUS = 2;
 
 export const EXIT_SAFE_PATH_ROOMS = 4;

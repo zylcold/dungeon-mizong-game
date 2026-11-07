@@ -1,5 +1,5 @@
 /** 迷宫生成、拓扑查询与最短路径；不依赖界面。 */
-import { DIRECTIONS, DIRECTION_LIST, ENEMY_DENSITY_MAX, ENEMY_DENSITY_MIN, EXIT_SAFE_PATH_ROOMS, EXIT_SAFE_RADIUS, MAZE_SIZE } from "../config.js";
+import { DIRECTIONS, DIRECTION_LIST, ECHO_SHARD_COUNT, ECHO_SHARD_MAX_DIST, ECHO_SHARD_MIN_DIST, ENEMY_DENSITY_MAX, ENEMY_DENSITY_MIN, EXIT_SAFE_PATH_ROOMS, EXIT_SAFE_RADIUS, MAZE_SIZE } from "../config.js";
 import { inBounds, indexFor, roomKey } from "./coordinates.js";
 import { mulberry32, shuffled, weightedPick } from "./random.js";
 import { ENEMY_DEFS } from "../data/catalog.js";
@@ -259,10 +259,51 @@ export function generateMaze(seed) {
     }
   }
 
+  // 中场锚点：在距中心 28–62 格的环形区域内投放 3 块「回响碎片」，绑定于农具/遗骸/宝箱事件中。
+  const shardRng = mulberry32(seed ^ 0x9e3779b9);
+  const primaryShardPool = [];
+  const fallbackShardPool = [];
+  for (let y = 0; y < MAZE_SIZE; y += 1) {
+    for (let x = 0; x < MAZE_SIZE; x += 1) {
+      const dist = Math.abs(x - center) + Math.abs(y - center);
+      if (dist < ECHO_SHARD_MIN_DIST || dist > ECHO_SHARD_MAX_DIST) continue;
+      const key = roomKey(x, y);
+      if (exitSafeRooms.has(key)) continue;
+      const ent = entities[key];
+      if (ent && ent.kind === "event" && (ent.type === "cache" || ent.type === "corpse" || ent.type === "chest")) {
+        primaryShardPool.push({ x, y, key });
+      } else if (!ent) {
+        fallbackShardPool.push({ x, y, key });
+      }
+    }
+  }
+  const shardCandidates = [
+    ...shuffled(primaryShardPool, shardRng),
+    ...shuffled(fallbackShardPool, shardRng)
+  ];
+  const shards = [];
+  for (const minSeparation of [28, 16, 0]) {
+    for (const candidate of shardCandidates) {
+      if (shards.length >= ECHO_SHARD_COUNT) break;
+      if (shards.some((item) => item.x === candidate.x && item.y === candidate.y)) continue;
+      const separated = shards.every((item) => Math.abs(item.x - candidate.x) + Math.abs(item.y - candidate.y) >= minSeparation);
+      if (!separated) continue;
+      const shardId = shards.length + 1;
+      if (!entities[candidate.key]) {
+        entities[candidate.key] = { kind: "event", type: "cache", shardId };
+      } else {
+        entities[candidate.key].shardId = shardId;
+      }
+      shards.push({ id: shardId, x: candidate.x, y: candidate.y });
+    }
+    if (shards.length >= ECHO_SHARD_COUNT) break;
+  }
+
   return {
     seed,
     bits,
     exits,
+    shards,
     entities,
     roomCount: MAZE_SIZE * MAZE_SIZE,
     loopCount: loopTarget

@@ -158,6 +158,9 @@ export class GameUI {
 
     const statuses = [];
     if (this.game.movement.autoPath.length > 0) statuses.push(`自动寻路 · 剩余 ${this.game.movement.autoPath.length} 步`);
+    if (Array.isArray(this.game.state.shards) && this.game.state.shards.length > 0) {
+      statuses.push(`回响碎片 · ${this.game.state.shards.length}/3`);
+    }
     if (this.game.state.visionTurns > 0) statuses.push(`迷雾关闭 · 50% · ${this.game.state.visionTurns}步`);
     else if (this.game.state.fogTurns > 0) statuses.push(`浓雾 · ${this.game.state.fogTurns}步`);
     if (this.game.state.poisonTurns > 0) statuses.push(`中毒 · ${this.game.state.poisonTurns}步`);

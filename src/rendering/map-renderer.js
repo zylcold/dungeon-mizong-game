@@ -184,6 +184,24 @@ export class MapRenderer {
       }
     }
 
+    const collectedShards = new Set(Array.isArray(this.game.state.shards) ? this.game.state.shards : []);
+    if (Array.isArray(this.game.state.maze.shards) && (revealAll || this.game.state.exitHintTurns > 0)) {
+      this.game.state.maze.shards.forEach((shard) => {
+        if (collectedShards.has(shard.id)) return;
+        const sx = clamp(offsetX + shard.x * scale, padding + 4, width - padding - 4);
+        const sy = clamp(offsetY + shard.y * scale, padding + 4, height - padding - 4);
+        const radius = compact ? 2.4 : 4.2;
+        ctx.save();
+        ctx.fillStyle = "#61d9f2";
+        ctx.shadowColor = "#61d9f2";
+        ctx.shadowBlur = compact ? 4 : 8;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
     const visibleExits = this.game.state.maze.exits.map((exit, idx) => {
       const discovered = explored.has(roomKey(exit.x, exit.y));
       const isGuarded = exit.guarded !== undefined ? Boolean(exit.guarded) : idx === 0;

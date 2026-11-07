@@ -4,7 +4,7 @@ import { inBounds, indexFor, roomKey } from "../core/coordinates.js";
 import { clamp } from "../core/math.js";
 import { connectRooms, createEnemy } from "../core/maze.js";
 import { hashString, mulberry32 } from "../core/random.js";
-import { ENEMY_DEFS, EVENT_DEFS, ITEM_DEFS } from "../data/catalog.js";
+import { ECHO_SHARD_DEFS, ENEMY_DEFS, EVENT_DEFS, ITEM_DEFS } from "../data/catalog.js";
 import { EVENT_COPY } from "../data/copy.js";
 
 export class EventSystem {
@@ -12,6 +12,24 @@ export class EventSystem {
     this.game = game;
     this.dom = game.dom;
     this.pendingLoreKey = null;
+  }
+
+  collectRoomShard(entity) {
+    const shardId = entity && entity.shardId;
+    if (!shardId) return false;
+    this.game.state.shards = Array.isArray(this.game.state.shards) ? this.game.state.shards : [];
+    if (this.game.state.shards.includes(shardId)) return false;
+    this.game.state.shards.push(shardId);
+    const shard = ECHO_SHARD_DEFS[shardId] || { name: `回响碎片 ${shardId}`, hint: "" };
+    this.game.ui.addLog(
+      "vision",
+      "✦",
+      `拾获回响碎片「${shard.name}」（${this.game.state.shards.length}/3）${shard.hint ? `——${shard.hint}` : ""}`
+    );
+    if (this.game.state.shards.length === 3) {
+      this.game.ui.addLog("system", "✦", "三块回响碎片已集齐，迷宫深处的真实记忆彻底苏醒");
+    }
+    return true;
   }
 
   attemptPendingLore() {
@@ -46,6 +64,9 @@ export class EventSystem {
     this.pendingLoreKey = `event:${entity.type}`;
     const definition = EVENT_DEFS[entity.type];
     const eventDescription = this.game.story.pickCopy(EVENT_COPY[entity.type], key, `event-copy-${entity.type}`);
+    const shardNote = entity.shardId && ECHO_SHARD_DEFS[entity.shardId]
+      ? `（隐约可见「${ECHO_SHARD_DEFS[entity.shardId].name}」的微光）`
+      : "";
     if (!entity.seen) {
       entity.seen = true;
       this.game.state.stats.events += 1;
@@ -56,7 +77,7 @@ export class EventSystem {
           kicker: "随机事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "打开宝箱不会消耗额外步数。",
           actions: [
             { label: "打开宝箱", onClick: () => this.openChest(key) },
@@ -89,6 +110,7 @@ export class EventSystem {
       case "trap": {
         const damage = 8 + Math.floor(this.eventRoll(key, "trap") * 8);
         this.game.state.hp = Math.max(1, this.game.state.hp - damage);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.ui.addLog("damage", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}触发地刺陷阱，损失 ${damage} 点生命`);
         this.game.ui.showToast(`地刺陷阱：-${damage} HP`);
@@ -96,6 +118,7 @@ export class EventSystem {
       }
       case "map":
         this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 30);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}读懂地图残片，出口箭头强化 30 步`);
         this.game.ui.showToast("出口箭头已强化");
@@ -112,7 +135,7 @@ export class EventSystem {
           kicker: "选择事件",
           title: `${definition.name} · ${stageLabel}`,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: this.game.state.hp > cost
             ? `消耗 ${cost} 点当前生命（不回复当前生命），生命上限永久增加 ${maxHpGain}${extraText}。`
             : `当前生命不足（需高于 ${cost} HP），无法献祭。`,
@@ -131,7 +154,7 @@ export class EventSystem {
           kicker: "风险事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "约三分之二概率获得道具，其余情况会遭遇伏击。",
           actions: [
             { label: "搜索背包", onClick: () => this.searchCorpse(key) },
@@ -143,6 +166,7 @@ export class EventSystem {
         break;
       case "fog":
         this.game.state.fogTurns = Math.max(this.game.state.fogTurns, 15);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.vision.updateVisibility();
         this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}浓雾笼罩四周，视野降为 1 格，持续 15 步`);
@@ -183,7 +207,7 @@ export class EventSystem {
           kicker: "地形事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "强行穿过可能受伤，也可能在树根下发现被遮住的补给。",
           actions: [
             { label: "踩稳穿过", onClick: () => this.crossRoots(key) },
@@ -201,6 +225,7 @@ export class EventSystem {
         ];
         const message = this.game.story.pickCopy(echoes, key, "echo-result");
         this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 16);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.ui.addLog("vision", definition.icon, `${definition.name}：${message}`);
         this.game.ui.showToast("回声带来了出口线索");
@@ -211,7 +236,7 @@ export class EventSystem {
           kicker: "记忆事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "翻找不会消耗额外步数，但不一定能找到可用物品。",
           actions: [
             { label: "翻找布袋", onClick: () => this.searchFarmCache(key) },
@@ -237,6 +262,8 @@ export class EventSystem {
   }
 
   openChest(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "chest");
     delete this.game.state.maze.entities[key];
     this.game.state.stats.chests += 1;
@@ -259,6 +286,8 @@ export class EventSystem {
   }
 
   crossRoots(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "roots-result");
     delete this.game.state.maze.entities[key];
     if (roll < 0.48) {
@@ -281,6 +310,8 @@ export class EventSystem {
   }
 
   searchFarmCache(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "farm-cache-result");
     delete this.game.state.maze.entities[key];
     if (roll < 0.56) {
@@ -302,6 +333,8 @@ export class EventSystem {
   }
 
   useFountain(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const wasPoisoned = this.game.state.poisonTurns > 0;
     const maxHeal = wasPoisoned ? Math.max(0, 25 - POISON_HEAL_PENALTY) : 25;
     const healed = Math.min(maxHeal, this.game.state.maxHp - this.game.state.hp);
@@ -320,6 +353,7 @@ export class EventSystem {
 
   useShrine(key) {
     const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const stageIndex = Math.min(SHRINE_COSTS.length - 1, (entity && entity.sacrifices) || 0);
     const cost = SHRINE_COSTS[stageIndex];
     const maxHpGain = SHRINE_MAX_HP_GAINS[stageIndex];
@@ -341,7 +375,7 @@ export class EventSystem {
     } else {
       this.game.ui.addLog("system", "◇", `完成献祭，消耗 ${cost} HP，生命上限增加 ${maxHpGain}`);
     }
-    if (this.game.state. maze && this.game.state.maze.entities[key]) {
+    if (this.game.state.maze && this.game.state.maze.entities[key]) {
       this.game.state.dismissedKey = key;
     }
     if (this.game.state.shrineSacrifices === 2) {
@@ -359,6 +393,8 @@ export class EventSystem {
   }
 
   searchCorpse(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "corpse");
     if (roll < 0.66) {
       const itemType = this.game.inventory.randomItemFor(key, "corpse-item");
@@ -381,12 +417,16 @@ export class EventSystem {
   }
 
   usePortal(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     delete this.game.state.maze.entities[key];
     this.finishEncounter(false);
     this.game.inventory.teleportPlayer("传送法阵");
   }
 
   openStoneDoor(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const { x, y } = this.game.state.player;
     const mask = this.game.state.maze.bits[indexFor(x, y)];
     const candidates = DIRECTION_LIST.filter(([, direction]) => {
