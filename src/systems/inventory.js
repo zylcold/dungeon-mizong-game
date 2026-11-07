@@ -1,5 +1,5 @@
 /** 道具拾取、消耗与瞬移。 */
-import { MAZE_SIZE, VISION_DURATION } from "../config.js";
+import { MAZE_SIZE, POISON_HEAL_PENALTY, VISION_DURATION } from "../config.js";
 import { roomKey } from "../core/coordinates.js";
 import { clamp } from "../core/math.js";
 import { hashString, mulberry32 } from "../core/random.js";
@@ -43,8 +43,8 @@ export class InventorySystem {
     }
     if (itemType === "potion") {
       const fear = Number.isFinite(this.game.state.fear) ? this.game.state.fear : 100;
-      if (this.game.state.hp >= this.game.state.maxHp && fear >= 100) {
-        this.game.ui.showToast("生命与心神已满");
+      if (this.game.state.hp >= this.game.state.maxHp && this.game.state.poisonTurns <= 0 && fear >= 100) {
+        this.game.ui.showToast("生命、心神已满且无毒素");
         return;
       }
     }
@@ -54,14 +54,22 @@ export class InventorySystem {
     }
     if (itemType === "potion") {
       this.game.state.inventory.potion -= 1;
-      const healed = Math.min(30, this.game.state.maxHp - this.game.state.hp);
+      const wasPoisoned = this.game.state.poisonTurns > 0;
+      const maxHeal = wasPoisoned ? Math.max(0, 30 - POISON_HEAL_PENALTY) : 30;
+      const healed = Math.min(maxHeal, this.game.state.maxHp - this.game.state.hp);
       this.game.state.hp += healed;
       this.game.fear.onPotion();
-      const parts = [];
-      if (healed > 0) parts.push(`恢复 ${healed} 点生命`);
-      parts.push("心神 +20");
-      this.game.ui.addLog("heal", "✚", `使用恢复药剂，${parts.join("，")}`);
-      this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP · 心神 +20` : "心神 +20");
+      if (wasPoisoned) {
+        this.game.state.poisonTurns = 0;
+        this.game.ui.addLog("heal", "✚", `使用恢复药剂净化毒素，恢复 ${healed} 点生命，心神 +20`);
+        this.game.ui.showToast(`净化毒素 · 恢复 ${healed} HP · 心神 +20`);
+      } else {
+        const parts = [];
+        if (healed > 0) parts.push(`恢复 ${healed} 点生命`);
+        parts.push("心神 +20");
+        this.game.ui.addLog("heal", "✚", `使用恢复药剂，${parts.join("，")}`);
+        this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP · 心神 +20` : "心神 +20");
+      }
     } else if (itemType === "vision") {
       const wasEnhanced = this.game.state.visionTurns > 0;
       this.game.state.inventory.vision -= 1;

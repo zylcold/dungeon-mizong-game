@@ -1,6 +1,7 @@
 /** 房间事件与遭遇生命周期。 */
-import { DIRECTION_LIST } from "../config.js";
+import { DIRECTION_LIST, POISON_HEAL_PENALTY, SHRINE_COSTS, SHRINE_MAX_HP_GAINS, VISION_DURATION } from "../config.js";
 import { inBounds, indexFor, roomKey } from "../core/coordinates.js";
+import { clamp } from "../core/math.js";
 import { connectRooms, createEnemy } from "../core/maze.js";
 import { hashString, mulberry32 } from "../core/random.js";
 import { ENEMY_DEFS, EVENT_DEFS, ITEM_DEFS } from "../data/catalog.js";
@@ -65,13 +66,17 @@ export class EventSystem {
           key
         });
         break;
-      case "fountain":
+      case "fountain": {
+        const poisoned = this.game.state.poisonTurns > 0;
+        const maxHeal = poisoned ? Math.max(0, 25 - POISON_HEAL_PENALTY) : 25;
         this.game.ui.showEncounter({
           kicker: "随机事件",
           title: definition.name,
           icon: definition.asset,
           description: eventDescription,
-          outcome: `饮用后恢复 25 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`,
+          outcome: poisoned
+            ? `饮用后净化全部毒素并恢复 ${maxHeal} 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`
+            : `饮用后恢复 25 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`,
           actions: [
             { label: "饮用泉水", onClick: () => this.useFountain(key) },
             { label: "离开", onClick: () => this.leaveEvent(key) }
@@ -80,6 +85,7 @@ export class EventSystem {
           key
         });
         break;
+      }
       case "trap": {
         const damage = 8 + Math.floor(this.eventRoll(key, "trap") * 8);
         this.game.state.hp = Math.max(1, this.game.state.hp - damage);
@@ -94,21 +100,31 @@ export class EventSystem {
         this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}读懂地图残片，出口箭头强化 30 步`);
         this.game.ui.showToast("出口箭头已强化");
         break;
-      case "shrine":
+      case "shrine": {
+        const stageIndex = Math.min(SHRINE_COSTS.length - 1, entity.sacrifices || 0);
+        const cost = SHRINE_COSTS[stageIndex];
+        const maxHpGain = SHRINE_MAX_HP_GAINS[stageIndex];
+        const stageLabel = ["一阶契约", "二阶契约", "终阶契约"][stageIndex];
+        const extraText = stageIndex === 1
+          ? "，并获得 15 步视野拓宽"
+          : (stageIndex === 2 ? "，并获赠「一击必杀」" : "");
         this.game.ui.showEncounter({
           kicker: "选择事件",
-          title: definition.name,
+          title: `${definition.name} · ${stageLabel}`,
           icon: definition.asset,
           description: eventDescription,
-          outcome: this.game.state.hp > 12 ? "消耗 12 点生命，生命上限永久增加 15。" : "当前生命不足，无法献祭。",
+          outcome: this.game.state.hp > cost
+            ? `消耗 ${cost} 点当前生命（不回复当前生命），生命上限永久增加 ${maxHpGain}${extraText}。`
+            : `当前生命不足（需高于 ${cost} HP），无法献祭。`,
           actions: [
-            { label: "献祭生命", disabled: this.game.state.hp <= 12, onClick: () => this.useShrine(key) },
+            { label: "献祭生命", disabled: this.game.state.hp <= cost, onClick: () => this.useShrine(key) },
             { label: "拒绝", onClick: () => this.leaveEvent(key) }
           ],
           closable: true,
           key
         });
         break;
+      }
       case "corpse":
         this.game.fear.onCorpseEncountered();
         this.game.ui.showEncounter({
@@ -286,22 +302,48 @@ export class EventSystem {
   }
 
   useFountain(key) {
-    const healed = Math.min(25, this.game.state.maxHp - this.game.state.hp);
+    const wasPoisoned = this.game.state.poisonTurns > 0;
+    const maxHeal = wasPoisoned ? Math.max(0, 25 - POISON_HEAL_PENALTY) : 25;
+    const healed = Math.min(maxHeal, this.game.state.maxHp - this.game.state.hp);
     this.game.state.hp += healed;
+    if (wasPoisoned) this.game.state.poisonTurns = 0;
     delete this.game.state.maze.entities[key];
-    this.game.ui.addLog("heal", "✚", healed > 0 ? `饮用生命泉，恢复 ${healed} 点生命` : "生命泉让你精神一振，但生命已满");
-    this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP` : "生命值已满");
+    if (wasPoisoned) {
+      this.game.ui.addLog("heal", "✚", `饮用生命泉净化毒素，恢复 ${healed} 点生命`);
+      this.game.ui.showToast(`净化毒素 · 恢复 ${healed} HP`);
+    } else {
+      this.game.ui.addLog("heal", "✚", healed > 0 ? `饮用生命泉，恢复 ${healed} 点生命` : "生命泉让你精神一振，但生命已满");
+      this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP` : "生命值已满");
+    }
     this.finishEncounter();
   }
 
   useShrine(key) {
-    if (this.game.state.hp <= 12) return;
-    this.game.state.hp -= 12;
-    this.game.state.maxHp += 15;
-    this.game.state.hp += 15;
+    const entity = this.game.state.maze.entities[key];
+    const stageIndex = Math.min(SHRINE_COSTS.length - 1, (entity && entity.sacrifices) || 0);
+    const cost = SHRINE_COSTS[stageIndex];
+    const maxHpGain = SHRINE_MAX_HP_GAINS[stageIndex];
+    if (this.game.state.hp <= cost) return;
+    this.game.state.hp -= cost;
+    this.game.state.maxHp += maxHpGain;
+    const nextStage = stageIndex + 1;
+    if (entity) entity.sacrifices = nextStage;
     this.game.state.shrineSacrifices = (this.game.state.shrineSacrifices || 0) + 1;
-    delete this.game.state.maze.entities[key];
-    this.game.ui.addLog("system", "◇", "完成献祭，生命上限增加 15");
+    if (nextStage === 2) {
+      this.game.state.visionTurns = clamp(this.game.state.visionTurns + 15, 15, VISION_DURATION * 2);
+      this.game.state.fogTurns = 0;
+      this.game.ui.addLog("system", "◇", `完成二阶献祭，消耗 ${cost} HP，生命上限 +${maxHpGain}，视野拓宽 15 步`);
+    } else if (nextStage >= 3) {
+      this.game.inventory.addItem("execute", 1, true);
+      this.game.state.stats.items += 1;
+      delete this.game.state.maze.entities[key];
+      this.game.ui.addLog("system", "◇", `完成终阶献祭，消耗 ${cost} HP，生命上限 +${maxHpGain}，获得「一击必杀」`);
+    } else {
+      this.game.ui.addLog("system", "◇", `完成献祭，消耗 ${cost} HP，生命上限增加 ${maxHpGain}`);
+    }
+    if (this.game.state. maze && this.game.state.maze.entities[key]) {
+      this.game.state.dismissedKey = key;
+    }
     if (this.game.state.shrineSacrifices === 2) {
       this.game.ui.addLog("vision", "◇", "石龛上的香灰无风自动，你似乎认出了底座下压着的那枚铜钱");
     } else if (this.game.state.shrineSacrifices === 3) {
@@ -309,7 +351,7 @@ export class EventSystem {
       this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 45);
       this.game.ui.addLog("vision", "◇", "记起土地龛下的旧愿，出口指引强化 45 步");
     }
-    this.game.ui.showToast("生命上限 +15");
+    this.game.ui.showToast(`生命上限 +${maxHpGain}`);
     this.finishEncounter();
     if (this.game.state.shrineSacrifices === 3) {
       this.game.story.tryPlayShrineSidequest();
