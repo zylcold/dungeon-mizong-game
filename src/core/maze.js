@@ -148,6 +148,7 @@ export function generateMaze(seed) {
   if (!exits.length) exits.push({ x: 0, y: 0 });
 
   const exitSafeRooms = new Set();
+  const exitApproachPaths = new Map();
   exits.forEach((exit) => {
     for (let dy = -EXIT_SAFE_RADIUS; dy <= EXIT_SAFE_RADIUS; dy += 1) {
       for (let dx = -EXIT_SAFE_RADIUS; dx <= EXIT_SAFE_RADIUS; dx += 1) {
@@ -158,6 +159,7 @@ export function generateMaze(seed) {
       }
     }
     const approachPath = shortestPath(bits, { x: center, y: center }, exit);
+    exitApproachPaths.set(roomKey(exit.x, exit.y), approachPath);
     approachPath.slice(-EXIT_SAFE_PATH_ROOMS).forEach((room) => {
       exitSafeRooms.add(roomKey(room.x, room.y));
     });
@@ -181,7 +183,8 @@ export function generateMaze(seed) {
   let cursor = 0;
   const takeRoom = () => available[cursor++];
   const enemyDensity = ENEMY_DENSITY_MIN + rng() * (ENEMY_DENSITY_MAX - ENEMY_DENSITY_MIN);
-  const enemyCount = Math.floor(MAZE_SIZE * MAZE_SIZE * enemyDensity);
+  const maxEnemyCap = Math.floor(MAZE_SIZE * MAZE_SIZE * ENEMY_DENSITY_MAX) - 1;
+  const enemyCount = Math.min(maxEnemyCap, Math.floor(MAZE_SIZE * MAZE_SIZE * enemyDensity));
   for (let i = 0; i < enemyCount; i += 1) {
     const room = takeRoom();
     if (!room) break;
@@ -224,6 +227,36 @@ export function generateMaze(seed) {
       { value: "teleport", weight: 2 }
     ], rng);
     entities[roomKey(room.x, room.y)] = { kind: "pickup", itemType };
+  }
+
+  // 远近出口差异化：距中心最短路径最近的出口设为「守卫出口」（常驻方向提示，安全区外缘第 5 格由 guardian 镇守），
+  // 其余较远出口设为「隐秘出口」（无守卫，但缩略图需凭借出口线索或已探索才显形）。
+  const guardianRng = mulberry32(seed ^ 0x2468ace1);
+  let nearestExitIndex = 0;
+  let nearestPathLength = Infinity;
+  exits.forEach((exit, idx) => {
+    const path = exitApproachPaths.get(roomKey(exit.x, exit.y)) || [];
+    if (path.length > 0 && path.length < nearestPathLength) {
+      nearestPathLength = path.length;
+      nearestExitIndex = idx;
+    }
+  });
+  exits.forEach((exit, idx) => {
+    exit.guarded = idx === nearestExitIndex;
+  });
+  const guardedExit = exits[nearestExitIndex];
+  if (guardedExit) {
+    const path = exitApproachPaths.get(roomKey(guardedExit.x, guardedExit.y)) || [];
+    for (let i = path.length - EXIT_SAFE_PATH_ROOMS - 1; i >= 3; i -= 1) {
+      const candidate = path[i];
+      const candidateKey = roomKey(candidate.x, candidate.y);
+      const distCenter = Math.abs(candidate.x - center) + Math.abs(candidate.y - center);
+      const safeFromExits = exits.every((ex) => Math.abs(candidate.x - ex.x) + Math.abs(candidate.y - ex.y) > EXIT_SAFE_RADIUS);
+      if (distCenter > 2 && safeFromExits && !exitSafeRooms.has(candidateKey)) {
+        entities[candidateKey] = createEnemy("guardian", guardianRng);
+        break;
+      }
+    }
   }
 
   return {

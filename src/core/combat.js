@@ -2,6 +2,21 @@
 import { POISON_DAMAGE_PER_STEP, SLIME_POISON_DURATION } from "../config.js";
 
 export function calculateCombatOutcome(state, enemy, surprise, useExecute = false) {
+  // 出口守卫首次受「一击必杀」时不会当场阵亡，而是削减一半生命且玩家留在原格不耗步。
+  if (useExecute && enemy && enemy.type === "guardian" && !enemy.weakened) {
+    const nextEnemyHp = Math.max(1, Math.floor(enemy.hp * 0.5));
+    return {
+      defeated: false,
+      weakenedGuardian: true,
+      nextEnemyHp,
+      hpAfterCombat: state.hp,
+      poisonTurnsAfterCombat: state.poisonTurns,
+      poisonDamage: 0,
+      hpAfterAction: state.hp,
+      poisonTurnsAfterAction: state.poisonTurns,
+      survives: state.hp > 0
+    };
+  }
   const hpAfterCombat = Math.max(0, state.hp - (useExecute ? 0 : enemy.hp));
   const defeated = hpAfterCombat > 0;
   const poisonTurnsAfterCombat = defeated && !useExecute && enemy.type === "slime"
@@ -13,6 +28,7 @@ export function calculateCombatOutcome(state, enemy, surprise, useExecute = fals
   const hpAfterAction = Math.max(0, hpAfterCombat - poisonDamage);
   return {
     defeated,
+    weakenedGuardian: false,
     hpAfterCombat,
     poisonTurnsAfterCombat,
     poisonDamage,
