@@ -108,8 +108,12 @@
       <h1>地下城：迷踪</h1>
       <p class="start-copy">从迷宫中心出发，在有限视野中寻找出口。每一步都可能遇到宝箱、陷阱、祭坛或潜伏的敌人。</p>
       <div class="record-card">
-        <span>个人最远纪录</span>
+        <span>个人最佳纪录</span>
         <strong id="bestRecord">尚无纪录</strong>
+      </div>
+      <div class="seed-row">
+        <input class="seed-input" id="seedInput" type="text" maxlength="16" placeholder="输入种子码（可选）" aria-label="自定义迷宫种子">
+        <button class="secondary-button daily-button" id="dailyGameButton" type="button">每日挑战</button>
       </div>
       <button class="primary-button" id="continueButton" hidden>继续探索</button>
       <button class="secondary-button" id="newGameButton">开始新游戏</button>
@@ -169,9 +173,13 @@
       <p class="eyebrow">本次探索结束</p>
       <h2 id="endTitle">你倒在了迷宫深处</h2>
       <p class="end-reveal" id="endReveal"></p>
+      <p class="end-seed" id="endSeed"></p>
       <canvas id="endMapCanvas"></canvas>
       <div class="end-stats" id="endStats"></div>
-      <button class="primary-button" id="endRestartButton">再次探索</button>
+      <div class="end-actions">
+        <button class="secondary-button" id="endReplaySeedButton" type="button">重玩同种子</button>
+        <button class="primary-button" id="endRestartButton">再次探索</button>
+      </div>
     </div>
   </section>
 

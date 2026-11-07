@@ -1,6 +1,7 @@
 /** HUD、遭遇面板、日志和轻量提示。 */
 import { MAX_LOGS } from "../config.js";
 import { clamp } from "../core/math.js";
+import { formatSeedCode } from "../core/random.js";
 import { ITEM_DEFS } from "../data/catalog.js";
 import { applyAtlasFrame } from "./assets.js";
 import { replaceChildrenCompat } from "./dom.js";
@@ -20,6 +21,13 @@ export class GameUI {
   prepareEndSummary(record, ending) {
     this.dom.endTitle.textContent = ending.title;
     this.dom.endReveal.textContent = ending.reveal;
+    if (this.dom.endSeed && this.game.state && this.game.state.maze) {
+      const code = formatSeedCode(this.game.state.maze.seed);
+      const modeLabel = this.game.state.seedMode === "daily"
+        ? " · 每日挑战"
+        : (this.game.state.seedMode === "custom" ? " · 自定义种子" : "");
+      this.dom.endSeed.textContent = `迷宫种子：${code}${modeLabel}`;
+    }
     this.dom.endStats.innerHTML = "";
     [
       ["探索格数", record.explored], ["总步数", record.steps],

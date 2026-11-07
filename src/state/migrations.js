@@ -14,6 +14,7 @@ export function deriveMainBeat(state) {
 }
 
 export function restoreState(state) {
+  state.seedMode = typeof state.seedMode === "string" ? state.seedMode : "normal";
   state.storyScenes = Array.isArray(state.storyScenes) ? state.storyScenes : [];
   state.loreSeen = Array.isArray(state.loreSeen) ? state.loreSeen : [];
   if (state.storyTriggerVersion !== STORY_TRIGGER_VERSION) {

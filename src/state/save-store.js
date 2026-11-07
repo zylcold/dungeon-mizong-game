@@ -1,6 +1,16 @@
 /** 本地进度与个人纪录读写；可注入存储适配器测试。 */
 import { DIARY_KEY, RECORD_KEY, SAVE_VERSION, STORAGE_KEY } from "../config.js";
 
+export function compareRecords(a, b) {
+  const aEscaped = Boolean(a && a.escaped);
+  const bEscaped = Boolean(b && b.escaped);
+  if (aEscaped !== bEscaped) return aEscaped ? -1 : 1;
+  if (aEscaped && bEscaped) {
+    return (a.steps - b.steps) || ((b.explored || 0) - (a.explored || 0));
+  }
+  return (b.steps - a.steps) || ((b.explored || 0) - (a.explored || 0));
+}
+
 export class SaveStore {
   constructor(storage) {
     this.storage = storage;
@@ -24,7 +34,7 @@ export class SaveStore {
       const records = JSON.parse(this.storage.getItem(RECORD_KEY) || "[]");
       return Array.isArray(records)
         ? records.filter((record) => record && Number.isFinite(record.steps))
-          .sort((a, b) => b.steps - a.steps || (b.explored || 0) - (a.explored || 0))
+          .sort(compareRecords)
         : [];
     } catch (error) {
       return [];
@@ -35,7 +45,7 @@ export class SaveStore {
     this.storage.removeItem(STORAGE_KEY);
     const records = this.loadRecords();
     records.push(record);
-    records.sort((a, b) => b.steps - a.steps || (b.explored || 0) - (a.explored || 0));
+    records.sort(compareRecords);
     this.storage.setItem(RECORD_KEY, JSON.stringify(records.slice(0, 20)));
   }
 

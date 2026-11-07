@@ -15,6 +15,7 @@ export class InputController {
       window.visualViewport.addEventListener("resize", () => this.game.renderer.resize());
     }
     window.addEventListener("keydown", (event) => {
+      if (event.target && event.target.tagName === "INPUT") return;
       const mapping = {
         ArrowUp: "up",
         w: "up",
@@ -77,12 +78,18 @@ export class InputController {
     this.dom.fullMapCanvas.addEventListener("click", (event) => this.game.movement.handleFullMapTap(event));
     this.dom.encounterClose.addEventListener("click", () => this.game.events.dismissEncounter());
     this.dom.continueButton.addEventListener("click", () => this.game.continueGame());
-    this.dom.newGameButton.addEventListener("click", () => this.game.startNewGame());
+    this.dom.newGameButton.addEventListener("click", () => this.game.startFromStartScreen());
+    if (this.dom.dailyGameButton) {
+      this.dom.dailyGameButton.addEventListener("click", () => this.game.startDailyChallenge());
+    }
     this.dom.diaryButton.addEventListener("click", () => this.game.devDiary.show());
     this.dom.diaryClose.addEventListener("click", () => this.game.devDiary.close());
     this.dom.diaryOverlay.addEventListener("click", (event) => {
       if (event.target === this.dom.diaryOverlay) this.game.devDiary.close();
     });
+    if (this.dom.endReplaySeedButton) {
+      this.dom.endReplaySeedButton.addEventListener("click", () => this.game.replayCurrentSeed());
+    }
     this.dom.endRestartButton.addEventListener("click", () => this.game.startNewGame());
     this.dom.storyContinueButton.addEventListener("click", () => this.game.story.hideStory());
     if (this.dom.storyChoices) {

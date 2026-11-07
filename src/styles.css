@@ -1274,3 +1274,51 @@ button:focus-visible,
   background: rgba(28, 48, 58, 0.55);
   color: #d5e2e8;
 }
+
+/* 种子分享与每日挑战 */
+
+.seed-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-gap: 8px;
+  margin-bottom: 6px;
+}
+
+.seed-input {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.seed-input::placeholder {
+  color: var(--muted);
+}
+
+.daily-button {
+  white-space: nowrap;
+  border-color: rgba(97, 217, 242, 0.35);
+  color: var(--cyan);
+}
+
+.end-seed {
+  margin: -6px auto 10px;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.end-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-gap: 8px;
+  margin-top: 8px;
+}
