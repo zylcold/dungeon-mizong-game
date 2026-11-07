@@ -9,6 +9,7 @@ import { SaveStore } from "./state/save-store.js";
 import { restoreState } from "./state/migrations.js";
 import { CombatSystem } from "./systems/combat.js";
 import { EventSystem } from "./systems/events.js";
+import { FearSystem } from "./systems/fear.js";
 import { InventorySystem } from "./systems/inventory.js";
 import { MovementSystem } from "./systems/movement.js";
 import { StorySystem } from "./systems/story.js";
@@ -25,6 +26,7 @@ export class DungeonGame {
     this.pending = null;
     this.storage = new SaveStore(window.localStorage);
     this.input = new InputController(this);
+    this.fear = new FearSystem(this);
     this.movement = new MovementSystem(this);
     this.vision = new VisionSystem(this);
     this.events = new EventSystem(this);
@@ -157,6 +159,7 @@ export class DungeonGame {
       id: ending.id,
       kicker: ending.kicker,
       text: ending.text,
+      mode: ending.mode || (escaped ? "storyCard" : "death"),
       buttonLabel: "查看本局",
       onClose: presentEndSummary
     });
