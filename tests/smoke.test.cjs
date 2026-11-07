@@ -63,6 +63,7 @@ class MockElement {
     this.hidden = false;
     this.disabled = false;
     this.textContent = "";
+    this.value = "";
     this.children = [];
     this.dataset = {};
     this.style = {};
@@ -131,6 +132,7 @@ const elementIds = [
   "encounterOutcome", "encounterActions", "encounterClose", "startOverlay", "continueButton", "newGameButton",
   "bestRecord", "diaryOverlay", "diaryClose", "diaryList", "diaryButton", "mapOverlay", "mapClose", "endOverlay", "endTitle", "endReveal", "endStats", "endRestartButton",
   "storyOverlay", "storyKicker", "storyText", "storyDual", "storyIllusion", "storyReality", "storyChoices", "storyContinueButton",
+  "seedInput", "dailyGameButton", "endSeed", "endReplaySeedButton",
   "restartButton", "toast", "countPotion", "countVision", "countExecute", "countTeleport", "timerVision"
 ];
 
@@ -220,6 +222,11 @@ const openingCandidates = game.story.buildStoryCandidates({
 });
 assert.ok(openingCandidates.length >= 3 && openingCandidates.length <= 5, "同一演出应存在 3-5 条候选文本");
 assert.equal(game.state.mainBeat, "M0", "开场播放中 mainBeat 应为 M0");
+assert.equal(
+  openingCandidates.some((text) => text.includes("幻象在你眼前晃动。") && text.includes("你听见山风从耳边穿过。")),
+  false,
+  "候选变体不应将幻觉线与现实线拼接在同一段演出中"
+);
 elements.storyContinueButton.listeners.click[0]();
 assert.equal(elements.storyOverlay.hidden, true, "开场每局只播放随机选中的一段故事");
 assert.equal(game.state.mainBeat, "M1", "关闭 M0 后应推进到 M1");
@@ -249,6 +256,7 @@ assert.equal(game.state.floor, undefined, "游戏应为单层大型迷宫");
 assert.equal(typeof game.nextFloor, "undefined", "出口不应再生成下一层");
 assert.equal(game.state.maze.bits.length, MAZE_SIZE * MAZE_SIZE);
 assert.equal(game.state.maze.roomCount, 18225, "迷宫总面积应在上一版基础上扩大约五倍");
+assert.equal(game.state.maze.shards.length, 3, "每局迷宫应在中场投放 3 块回响碎片");
 assert.equal(game.state.logs.length, 5, "开局事件时间流默认应填充五条且包含随机环境文案");
 assert.ok(game.state.maze.exits.length >= 1 && game.state.maze.exits.length <= 3);
 assert.equal(game.state.player.x, MAZE_CENTER);
@@ -258,7 +266,7 @@ assert.equal("wallPreviewRooms" in game, false, "墙体不应再依赖随移动�
 const initialEnemies = Object.values(game.state.maze.entities).filter((entity) => entity.kind === "enemy");
 assert.ok(initialEnemies.length >= Math.floor(MAZE_SIZE * MAZE_SIZE * 0.045), "怪物密度不应低于 4.5%");
 assert.ok(initialEnemies.length <= Math.floor(MAZE_SIZE * MAZE_SIZE * 0.06), "怪物密度不应高于 6%");
-assert.equal(initialEnemies.some((enemy) => enemy.type === "guardian"), false, "出口附近不再放置守卫");
+assert.equal(initialEnemies.some((enemy) => enemy.type === "guardian"), true, "近端出口接近路线安全区外侧应放置出口守卫");
 
 // PNG 图集完整性与索引。
 const assetDirectory = path.join(__dirname, "..", "assets");
@@ -290,7 +298,7 @@ assert.equal(gameSource.includes("fetch("), false, "游戏运行时不应发起�
 assert.equal(gameSource.includes("幻觉线 ·"), false, "演出界面不应标注幻觉路线");
 assert.equal(gameSource.includes("真实线 ·"), false, "演出界面不应标注真实路线");
 const loreKeys = [
-  "enemy:rat", "enemy:skeleton", "enemy:slime", "enemy:ghost", "enemy:mimic",
+  "enemy:rat", "enemy:skeleton", "enemy:slime", "enemy:ghost", "enemy:mimic", "enemy:guardian",
   "event:chest", "event:fountain", "event:trap", "event:map", "event:shrine", "event:corpse",
   "event:fog", "event:portal", "event:door", "event:roots", "event:echo", "event:cache",
   "item:potion", "item:vision", "item:execute", "item:teleport"
@@ -392,7 +400,7 @@ function resolvePending() {
       case "chest": game.events.openChest(pendingKey); break;
       case "fountain": game.events.useFountain(pendingKey); break;
       case "shrine":
-        if (game.state.hp <= 12) game.state.hp = 100;
+        if (game.state.hp <= 25) game.state.hp = 100;
         game.events.useShrine(pendingKey);
         break;
       case "corpse": game.events.searchCorpse(pendingKey); break;
@@ -421,7 +429,7 @@ function walkTo(target, maxMoves = 800) {
   assert.ok(moves < maxMoves, "移动不应超出安全上限");
 }
 
-// 21 类内容均随机选择一条故事线，每次只演出一段，并在本局内去重。
+// 22 类内容均随机选择一条故事线，每次只演出一段，并在本局内去重。
 for (const loreKey of loreKeys) {
   game.state.lastStoryStep = game.state.totalSteps - 30;
   game.state.lastNormalStoryStep = game.state.totalSteps - 20;
@@ -434,7 +442,7 @@ for (const loreKey of loreKeys) {
   dismissAllStories();
   assert.equal(game.story.tryPlayLore(loreKey), false, `${loreKey} 不应重复播放`);
 }
-assert.equal(game.state.loreSeen.length, 21);
+assert.equal(game.state.loreSeen.length, 22);
 game.state.loreSeen = [];
 game.save();
 
@@ -921,9 +929,9 @@ game.state.totalSteps = 20;
 assert.equal(game.story.tryPlayLore("item:potion"), true, "第 20 步起可演出");
 dismissAllStories();
 
-// 主动作优先：击杀/结算进行中血量新低只记账不抢戏，hold 结束后也不补播。
+// 主动作优先：击杀/结算进行中血量新低只记账不抢戏，hold 结束后也不补播；回血后再次受伤可按序触发未读残片。
 game.state.mainBeat = "E"; // 隔离主线，专测 hold/血量线
-game.state.storyScenes = game.state.storyScenes.filter((sceneId) => sceneId !== "memory-25");
+game.state.storyScenes = [];
 game.state.maxHp = 100;
 game.state.hp = 14;
 game.state.lastStoryStep = game.state.totalSteps - 30;
@@ -935,7 +943,63 @@ assert.ok(game.state.hpStoryRatioLow <= 0.14, "血量新低已记账");
 game.story.proximateHold = false;
 game.ui.updateUI();
 assert.equal(elements.storyOverlay.hidden, true, "hold 结束后也不补播");
+game.state.hp = 80;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, true, "回血本身不触发剧情");
+game.state.hp = 45;
+game.state.lastStoryStep = game.state.totalSteps - 30;
+game.state.lastNormalStoryStep = game.state.totalSteps - 20;
+game.ui.updateUI();
+assert.equal(elements.storyOverlay.hidden, false, "回血后再次跌破阈值应触发未读血量残片");
+assert.ok(elements.storyKicker.textContent.includes("泥土"), "应按 75% → 50% → 25% 顺序优先补齐 memory-75");
+dismissAllStories();
 game.state.hp = game.state.maxHp;
+
+// 祭坛三阶契约（真实扣血）与连续 3 次献祭触发「土地龛的旧愿」支线。
+game.startNewGame({ seed: 20261106 });
+dismissAllStories();
+const shrineKey = key(game.state.player.x, game.state.player.y);
+game.state.maze.entities[shrineKey] = { kind: "event", type: "shrine" };
+game.state.hp = 90;
+game.state.maxHp = 100;
+game.events.useShrine(shrineKey);
+dismissAllStories();
+assert.equal(game.state.hp, 78, "一阶献祭应真实扣除 12 HP，不再白送 15 HP");
+assert.equal(game.state.maxHp, 115);
+assert.equal(game.state.shrineSacrifices, 1);
+assert.ok(game.state.maze.entities[shrineKey], "未满三阶的祭坛仍留在原地");
+game.events.useShrine(shrineKey);
+dismissAllStories();
+assert.equal(game.state.hp, 60, "二阶献祭应扣除 18 HP");
+assert.equal(game.state.maxHp, 135);
+assert.equal(game.state.visionTurns >= 15, true, "二阶献祭应赠送 15 步视野");
+const execBeforeShrine3 = game.state.inventory.execute;
+game.events.useShrine(shrineKey);
+assert.equal(game.state.hp, 36, "终阶献祭应扣除 24 HP");
+assert.equal(game.state.maxHp, 160);
+assert.equal(game.state.inventory.execute, execBeforeShrine3 + 1, "终阶献祭应赠送一击必杀");
+assert.equal(game.state.maze.entities[shrineKey], undefined, "终阶献祭后祭坛应消失");
+assert.equal(elements.storyOverlay.hidden, false, "第三次献祭应立即触发隐藏支线");
+assert.ok(elements.storyKicker.textContent.includes("土地龛的旧愿"));
+dismissAllStories();
+assert.ok(game.state.storyScenes.includes("sidequest-shrine-3"));
+
+// 中毒期间使用药剂或生命泉应净化毒素并折损 8 点恢复量。
+game.state.hp = 50;
+game.state.maxHp = 100;
+game.state.poisonTurns = 4;
+game.state.inventory.potion = 1;
+game.inventory.useItem("potion");
+assert.equal(game.state.poisonTurns, 0, "中毒喝药应净化全部毒素");
+assert.equal(game.state.hp, 72, "中毒喝药应恢复 22 HP（30 - 8）");
+
+// 集齐 3 块回响碎片离开迷宫应解锁第三真结局「梦醒 · 破妄」。
+game.state.shards = [1, 2, 3];
+game.endGame("你走出了迷宫", true);
+assert.equal(elements.storyOverlay.hidden, false);
+assert.ok(elements.storyKicker.textContent.includes("破妄"), "集齐碎片逃生应触发第三真结局");
+assert.ok(elements.endSeed.textContent.includes("迷宫种子："), "结算面板应展示本局迷宫种子码");
+dismissAllStories();
 
 // 战斗结果按真实血量核对，不补血；覆盖本步毒伤、伏击不走步、一击必杀和直接战败。
 const combatCases = [
@@ -990,8 +1054,8 @@ console.log(JSON.stringify({
   loops: cycleCount,
   exits: completedRunMetrics.exits,
   eventTypes: [...eventTypes].sort(),
-  totalSteps: completedRunMetrics.totalSteps,
+  totalSteps: completedRunMetrics.exits > 0 ? completedRunMetrics.totalSteps : 0,
   logs: completedRunMetrics.logs,
-  regressions: { cappedLogUpdates: true, unreadStoryRecovery: true, combatCases: combatCases.length },
+  regressions: { cappedLogUpdates: true, unreadStoryRecovery: true, combatCases: combatCases.length, shrineSidequest: true, echoShards: 3 },
   result: "ok"
 }, null, 2));
