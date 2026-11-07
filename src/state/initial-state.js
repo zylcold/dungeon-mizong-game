@@ -1,15 +1,17 @@
 /** 创建可持久化的游戏初始状态。 */
 import { MAZE_SIZE, NORMAL_STORY_MIN_GAP_STEPS, SAVE_VERSION, STORY_TRIGGER_VERSION } from "../config.js";
 import { generateMaze } from "../core/maze.js";
-import { mulberry32, randomSeed } from "../core/random.js";
+import { mulberry32, parseSeedInput, randomSeed } from "../core/random.js";
 
-export function createInitialState() {
-  const seed = randomSeed();
+export function createInitialState(customSeed = null, seedMode = "normal") {
+  const parsedSeed = parseSeedInput(customSeed);
+  const seed = parsedSeed !== null ? parsedSeed : randomSeed();
   const center = Math.floor(MAZE_SIZE / 2);
   const maze = generateMaze(seed);
   return {
     version: SAVE_VERSION,
     active: true,
+    seedMode: typeof seedMode === "string" ? seedMode : "normal",
     totalSteps: 0,
     hp: 100,
     maxHp: 100,
@@ -23,6 +25,8 @@ export function createInitialState() {
     fogTurns: 0,
     poisonTurns: 0,
     exitHintTurns: 0,
+    shrineSacrifices: 0,
+    shards: [],
     player: { x: center, y: center },
     explored: [],
     path: [{ x: center, y: center, teleport: false }],

@@ -8,6 +8,12 @@ export const ITEM_DEFS = {
   teleport: { name: "瞬移卷轴", asset: "item-teleport", icon: "✦" }
 };
 
+export const ECHO_SHARD_DEFS = {
+  1: { id: 1, name: "停摆的铜怀表", hint: "指针停在清晨五点半，表盖内侧沾着引水沟的红泥" },
+  2: { id: 2, name: "蓝布药瓶塞", hint: "妻子天未亮剪下的粗布塞口，还残留着草药苦香" },
+  3: { id: 3, name: "刻名护林牌", hint: "背面刻着后山旧排水洞的分流暗渠走向" }
+};
+
 export const ENEMY_DEFS = {
   rat: {
     name: "地穴鼠",

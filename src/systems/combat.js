@@ -34,15 +34,19 @@ export class CombatSystem {
     ];
     if (this.game.state.inventory.execute > 0) {
       const executeOutcome = this.getCombatOutcome(enemy, surprise, true);
+      let executeLabel = executeOutcome.survives ? "使用一击必杀" : "一击必杀（毒伤致命）";
+      if (executeOutcome.weakenedGuardian) {
+        executeLabel = `一击必杀（重创至 ${executeOutcome.nextEnemyHp} HP）`;
+      }
       actions.push({
-        label: executeOutcome.survives ? "使用一击必杀" : "一击必杀（毒伤致命）",
+        label: executeLabel,
         onClick: () => this.fightEnemy(true)
       });
     } else if (!surprise) {
       actions.push({ label: "后退", onClick: () => this.game.events.dismissEncounter() });
     }
     this.game.ui.showEncounter({
-      kicker: surprise ? "遭遇伏击" : "发现敌人",
+      kicker: surprise ? "遭遇伏击" : (enemy.type === "guardian" ? "出口守卫" : "发现敌人"),
       title: `${definition.name} · ${enemy.hp} HP`,
       icon: definition.asset,
       description: `${definition.description} ${this.game.story.pickCopy(ENEMY_COPY[enemy.type], key, `enemy-copy-${enemy.type}`)}`,
@@ -63,6 +67,16 @@ export class CombatSystem {
     if (useExecute) {
       if (this.game.state.inventory.execute <= 0) return;
       this.game.state.inventory.execute -= 1;
+      if (combat.weakenedGuardian) {
+        enemy.hp = combat.nextEnemyHp;
+        enemy.weakened = true;
+        this.game.ui.addLog("combat", "⚔", `一击必杀重创${definition.name}，其血量减半至 ${enemy.hp} HP`);
+        this.game.ui.showToast(`重创${definition.name} · 剩余 ${enemy.hp} HP`);
+        this.game.ui.updateUI();
+        this.game.renderer.render();
+        this.openEnemyEncounter(enemy, target, key, surprise, false);
+        return;
+      }
       const droppedChest = this.placeEnemyChestDrop(enemy, key);
       this.game.state.stats.enemies += 1;
       this.game.ui.addLog("combat", "⚔", `一击消灭${definition.name}，生命未受损${droppedChest ? "，并发现掉落宝箱" : ""}`);
@@ -120,7 +134,8 @@ export class CombatSystem {
   }
 
   placeEnemyChestDrop(enemy, key) {
-    const dropped = this.game.events.eventRoll(key, `enemy-chest-${enemy.type}`) < ENEMY_CHEST_DROP_RATE;
+    const dropped = enemy.type === "guardian"
+      || this.game.events.eventRoll(key, `enemy-chest-${enemy.type}`) < ENEMY_CHEST_DROP_RATE;
     if (dropped) {
       this.game.state.maze.entities[key] = { kind: "event", type: "chest", dropped: true };
       return true;

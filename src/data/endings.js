@@ -17,8 +17,28 @@ function endingTail(branchFlags = {}) {
   return `这一路上，${parts.join("，")}。`;
 }
 
-export function getEnding(reason, escaped, branchFlags = {}) {
-  const tail = endingTail(branchFlags);
+export function getEnding(reason, escaped, state = {}) {
+  // 兼容两种调用约定：完整游戏状态（含 shards/storyScenes/loreSeen/shrineSacrifices/branchFlags）
+  // 或直接传 branchFlags 子对象（1.14.x 心神分流）。
+  const flags = state && state.branchFlags ? state.branchFlags : state;
+  const tail = endingTail(flags);
+  const shardsCount = Array.isArray(state && state.shards) ? state.shards.length : 0;
+  const scenes = Array.isArray(state && state.storyScenes) ? state.storyScenes : [];
+  const loreCount = Array.isArray(state && state.loreSeen) ? state.loreSeen.length : 0;
+  const hasShrineQuest = scenes.includes("sidequest-shrine-3") || (state && state.shrineSacrifices >= 3);
+  const hasAllMemories = ["memory-75", "memory-50", "memory-25"].every((id) => scenes.includes(id));
+
+  if (escaped && (shardsCount >= 3 || hasShrineQuest || loreCount >= 12)) {
+    return {
+      id: "ending-awakened",
+      kicker: "梦醒 · 破妄",
+      title: "你凭双脚走出了山谷",
+      reveal: "你不仅在幻境中寻回全部记忆，更在搜救绳垂落前亲手推开排水洞分流闸；沿着熟悉的山道迎向家人，才是这条真实路线的终点。",
+      text: `这一次，不等天光将暗红走廊震碎，你已认出眼前正是后山旧排水洞的分流闸，并用那把磨薄的短镰亲手替山下的稻田引走了整场暴雨。醒来时，你在谷底旧排水洞边握紧村人垂下的搜救绳与旧铜钱；记忆早已彻底归位——清晨你为疏通暴雨堵塞的引水沟独自上山，因踩断湿根而坠落。${tail}你没有趴在谷底等待救援，而是背起修补过三次的旧竹篓迎着火把走上山道，最终回到家里那盏始终为你亮着的灯前。当你记起自己是谁，就没有哪座迷宫能再困住你的归途。`,
+      mode: "storyCard"
+    };
+  }
+
   if (escaped) {
     return {
       id: "ending-escaped",
@@ -29,6 +49,18 @@ export function getEnding(reason, escaped, branchFlags = {}) {
       mode: "storyCard"
     };
   }
+
+  if (hasShrineQuest || hasAllMemories || shardsCount >= 2) {
+    return {
+      id: "ending-fallen-beacon",
+      kicker: "梦醒 · 路标",
+      title: "蓝布条为你引来归途",
+      reveal: "幻觉中的力竭让你在彻底昏沉前系上求生路标；现实里的搜山人循着蓝布条将你带回村庄，才是这条真实路线的终点。",
+      text: `${reason}。幻境里的力竭没有把你拖入长夜，反而让你在彻底昏沉前，把药瓶口那截妻子剪下的蓝布条系上了谷底最高的一根断枝。你在艾草烟气与熟悉的犬吠声中睁开眼，自家屋檐下的灯火正映着窗外初晴的夜空——梦中的倒下不是终点，而是现实归途的开始。`,
+      mode: "storyCard"
+    };
+  }
+
   return {
     id: "ending-dead",
     kicker: "结局 · 沉没",

@@ -184,18 +184,44 @@ export class MapRenderer {
       }
     }
 
+    const collectedShards = new Set(Array.isArray(this.game.state.shards) ? this.game.state.shards : []);
+    if (Array.isArray(this.game.state.maze.shards) && (revealAll || this.game.state.exitHintTurns > 0)) {
+      this.game.state.maze.shards.forEach((shard) => {
+        if (collectedShards.has(shard.id)) return;
+        const sx = clamp(offsetX + shard.x * scale, padding + 4, width - padding - 4);
+        const sy = clamp(offsetY + shard.y * scale, padding + 4, height - padding - 4);
+        const radius = compact ? 2.4 : 4.2;
+        ctx.save();
+        ctx.fillStyle = "#61d9f2";
+        ctx.shadowColor = "#61d9f2";
+        ctx.shadowBlur = compact ? 4 : 8;
+        ctx.beginPath();
+        ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    const visibleExits = this.game.state.maze.exits.map((exit, idx) => {
+      const discovered = explored.has(roomKey(exit.x, exit.y));
+      const isGuarded = exit.guarded !== undefined ? Boolean(exit.guarded) : idx === 0;
+      const canShowCompact = isGuarded || discovered || revealAll || this.game.state.exitHintTurns > 0;
+      const canShowFull = discovered || revealAll || this.game.state.exitHintTurns > 0;
+      return { exit, idx, discovered, isGuarded, visible: compact ? canShowCompact : canShowFull };
+    });
+
     const compactHints = compact
-      ? this.game.state.maze.exits.map((exit) => this.getExitHintDirection(exit))
+      ? visibleExits.map((entry) => (entry.visible ? this.getExitHintDirection(entry.exit) : null))
       : [];
     const hintTotals = {};
     const hintUsed = {};
     compactHints.forEach((hint) => {
+      if (!hint) return;
       hintTotals[hint.key] = (hintTotals[hint.key] || 0) + 1;
     });
 
-    this.game.state.maze.exits.forEach((exit, exitIndex) => {
-      const discovered = explored.has(roomKey(exit.x, exit.y));
-      if (!compact && !revealAll && !discovered && this.game.state.exitHintTurns <= 0) return;
+    visibleExits.forEach(({ exit, idx, discovered, isGuarded, visible }) => {
+      if (!visible) return;
       const arrowSize = compact ? clamp(scale * 2.2, 3.5, 5) : clamp(scale * 1.1, 5.5, 7.2);
       const rawX = offsetX + exit.x * scale;
       const rawY = offsetY + exit.y * scale;
@@ -204,7 +230,7 @@ export class MapRenderer {
       let ux;
       let uy;
       if (compact) {
-        const hint = compactHints[exitIndex];
+        const hint = compactHints[idx];
         const slot = hintUsed[hint.key] || 0;
         const total = hintTotals[hint.key];
         const shift = (slot - (total - 1) / 2) * arrowSize * 2.1;
@@ -230,7 +256,7 @@ export class MapRenderer {
       const baseX = px - ux * arrowSize * 0.48;
       const baseY = py - uy * arrowSize * 0.48;
       ctx.globalAlpha = discovered || revealAll || this.game.state.exitHintTurns > 0 ? 1 : 0.76;
-      ctx.fillStyle = "#ffc85c";
+      ctx.fillStyle = isGuarded && this.game.state.exitHintTurns <= 0 && !discovered ? "#ff8a65" : "#ffc85c";
       ctx.shadowColor = "#b28bff";
       ctx.shadowBlur = compact ? 5 : 9;
       ctx.beginPath();

@@ -50,6 +50,20 @@ export const POISON_DAMAGE_PER_STEP = 2;
 
 export const SLIME_POISON_DURATION = 3;
 
+export const MAX_POISON_TURNS = 9;
+
+export const POISON_HEAL_PENALTY = 8;
+
+export const SHRINE_COSTS = [12, 18, 24];
+
+export const SHRINE_MAX_HP_GAINS = [15, 20, 25];
+
+export const ECHO_SHARD_COUNT = 3;
+
+export const ECHO_SHARD_MIN_DIST = 28;
+
+export const ECHO_SHARD_MAX_DIST = 62;
+
 export const EXIT_SAFE_RADIUS = 2;
 
 export const EXIT_SAFE_PATH_ROOMS = 4;

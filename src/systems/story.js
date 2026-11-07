@@ -3,7 +3,7 @@ import { GLOBAL_STORY_MIN_GAP_STEPS, NORMAL_STORY_MIN_GAP_STEPS } from "../confi
 import { roomKey } from "../core/coordinates.js";
 import { AMBIENT_COPY } from "../data/copy.js";
 import { MAINLINE_BEATS } from "../data/mainline.js";
-import { LORE_SCENES, STORY_SCENES } from "../data/stories.js";
+import { LORE_SCENES, SHRINE_SIDEQUEST_SCENE, STORY_SCENES } from "../data/stories.js";
 
 const STORY_VARIANT_FILLERS = [
   "你停下半息，确认这段念头还在脑海里。",
@@ -53,6 +53,13 @@ export class StorySystem {
     this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
     const healthRatio = this.game.state.hp / Math.max(1, this.game.state.maxHp);
     const previousLow = Number.isFinite(this.game.state.hpStoryRatioLow) ? this.game.state.hpStoryRatioLow : 1;
+    if (healthRatio > previousLow) {
+      // 回血后抬升下探水位线，避免因主动作/冷却被跳过的阈值在回血再受伤后永久锁死；
+      // 未回血的原地移动（healthRatio === previousLow）仍直接返回、绝不延迟补播。
+      this.game.state.hpStoryRatioLow = healthRatio;
+      this.game.save();
+      return;
+    }
     if (healthRatio >= previousLow) return;
     this.game.state.hpStoryRatioLow = healthRatio;
     this.game.save();
@@ -61,7 +68,8 @@ export class StorySystem {
       healthRatio <= scene.threshold && !this.game.state.storyScenes.includes(scene.id)
     ));
     if (!eligible.length) return;
-    const scene = eligible[eligible.length - 1];
+    // 按 75% → 50% → 25% 顺序依次补齐尚未演出的记忆残片，避免大额受伤直接跳过前序片段。
+    const scene = eligible[0];
     const variant = this.pickStoryVariant(scene.id, scene);
     this.tryPlayStory({
       id: `${scene.id}-${variant.key}`,
@@ -167,6 +175,7 @@ export class StorySystem {
   isGapExempt(scene) {
     const id = scene && scene.id ? String(scene.id) : "";
     if (id === "main-M0" || id.startsWith("main-M0") || id.startsWith("intro-")) return true;
+    if (id.startsWith("sidequest-")) return true;
     if (id.startsWith("ending-")) return true;
     if (id === "spirit-intro" || (scene && scene.spiritIntro)) return true;
     if (scene && scene.beatId === "M0") return true;
@@ -202,14 +211,31 @@ export class StorySystem {
     if (story?.allowAutoVariants === false) return unique.slice(0, 5);
     const baseA = unique[0] || "";
     const baseB = unique[1] || baseA;
-    if (unique.length >= 2) [`${baseA}\n\n${baseB}`, `${baseB}\n\n${baseA}`].forEach(pushUnique);
+    // 禁止将 illusion 与 reality 拼接到同一次演出中剧透双线对照；
+    // 若独立候选不足 3 条，仅在单视角基底后追加氛围余韵段以补齐候选池。
     if (unique.length < 3) {
-      const paddedBase = this.clipStoryParagraphs(baseA || STORY_VARIANT_DEFAULT, 2);
-      STORY_VARIANT_FILLERS.forEach((filler) => {
-        if (unique.length < 3) pushUnique(`${paddedBase}\n\n${filler}`);
+      const bases = [baseA, baseB];
+      STORY_VARIANT_FILLERS.forEach((filler, index) => {
+        if (unique.length < 4) {
+          const paddedBase = this.clipStoryParagraphs(bases[index % bases.length] || STORY_VARIANT_DEFAULT, 2);
+          pushUnique(`${paddedBase}\n\n${filler}`);
+        }
       });
     }
     return unique.slice(0, 5);
+  }
+
+  tryPlayShrineSidequest() {
+    if (!this.game.state || !this.game.state.active) return false;
+    this.game.state.storyScenes = Array.isArray(this.game.state.storyScenes) ? this.game.state.storyScenes : [];
+    if (this.game.state.storyScenes.includes(SHRINE_SIDEQUEST_SCENE.id)) return false;
+    return this.tryPlayStory({
+      id: SHRINE_SIDEQUEST_SCENE.id,
+      kicker: SHRINE_SIDEQUEST_SCENE.kicker,
+      text: SHRINE_SIDEQUEST_SCENE.text,
+      buttonLabel: SHRINE_SIDEQUEST_SCENE.buttonLabel,
+      markIds: [SHRINE_SIDEQUEST_SCENE.id]
+    }, { special: true, forceStep: true });
   }
 
   tryPlayLore(loreKey) {
@@ -244,16 +270,15 @@ export class StorySystem {
     if (!this.game.state || !this.game.state.active) return false;
     if (!this.dom.storyOverlay.hidden || !this.dom.startOverlay.hidden || !this.dom.endOverlay.hidden || this.game.pending) return false;
     if (this.game.state.currentStory) return false;
-    const special = Boolean(options.special) || /^intro-|^ending-|^main-/u.test(scene.id);
+    const special = Boolean(options.special) || /^intro-|^ending-|^main-|^sidequest-/u.test(scene.id);
     const lastStep = Number.isFinite(this.game.state.lastStoryStep) ? this.game.state.lastStoryStep : -NORMAL_STORY_MIN_GAP_STEPS;
     const lastNormalStep = Number.isFinite(this.game.state.lastNormalStoryStep)
       ? this.game.state.lastNormalStoryStep
       : -NORMAL_STORY_MIN_GAP_STEPS;
-    if (this.game.state.totalSteps === lastStep) return false;
+    if (!options.forceStep && this.game.state.totalSteps === lastStep) return false;
     // 全局间隔：任意两次演出至少 GLOBAL 步（含主线 special）；M0/E 豁免。
-    // ChoiceBar→echo 通过回拨 lastStoryStep 实现同次交互紧接。
+    // ChoiceBar→echo 通过回拨 lastStoryStep 实现同次交互紧接；支线 forceStep 豁免同步锁但仍守全局间隔。
     if (!this.isGapExempt(scene) && this.game.state.totalSteps - lastStep < GLOBAL_STORY_MIN_GAP_STEPS) return false;
-    // 填充 lore 额外保持 20 步普通冷却。
     if (!special && this.game.state.totalSteps - lastNormalStep < NORMAL_STORY_MIN_GAP_STEPS) return false;
     if (!this.showStory(scene)) return false;
     this.game.state.lastStoryStep = this.game.state.totalSteps;

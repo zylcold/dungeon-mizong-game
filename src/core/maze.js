@@ -1,5 +1,5 @@
 /** 迷宫生成、拓扑查询与最短路径；不依赖界面。 */
-import { DIRECTIONS, DIRECTION_LIST, ENEMY_DENSITY_MAX, ENEMY_DENSITY_MIN, EXIT_SAFE_PATH_ROOMS, EXIT_SAFE_RADIUS, MAZE_SIZE } from "../config.js";
+import { DIRECTIONS, DIRECTION_LIST, ECHO_SHARD_COUNT, ECHO_SHARD_MAX_DIST, ECHO_SHARD_MIN_DIST, ENEMY_DENSITY_MAX, ENEMY_DENSITY_MIN, EXIT_SAFE_PATH_ROOMS, EXIT_SAFE_RADIUS, MAZE_SIZE } from "../config.js";
 import { inBounds, indexFor, roomKey } from "./coordinates.js";
 import { mulberry32, shuffled, weightedPick } from "./random.js";
 import { ENEMY_DEFS } from "../data/catalog.js";
@@ -148,6 +148,7 @@ export function generateMaze(seed) {
   if (!exits.length) exits.push({ x: 0, y: 0 });
 
   const exitSafeRooms = new Set();
+  const exitApproachPaths = new Map();
   exits.forEach((exit) => {
     for (let dy = -EXIT_SAFE_RADIUS; dy <= EXIT_SAFE_RADIUS; dy += 1) {
       for (let dx = -EXIT_SAFE_RADIUS; dx <= EXIT_SAFE_RADIUS; dx += 1) {
@@ -158,6 +159,7 @@ export function generateMaze(seed) {
       }
     }
     const approachPath = shortestPath(bits, { x: center, y: center }, exit);
+    exitApproachPaths.set(roomKey(exit.x, exit.y), approachPath);
     approachPath.slice(-EXIT_SAFE_PATH_ROOMS).forEach((room) => {
       exitSafeRooms.add(roomKey(room.x, room.y));
     });
@@ -181,7 +183,8 @@ export function generateMaze(seed) {
   let cursor = 0;
   const takeRoom = () => available[cursor++];
   const enemyDensity = ENEMY_DENSITY_MIN + rng() * (ENEMY_DENSITY_MAX - ENEMY_DENSITY_MIN);
-  const enemyCount = Math.floor(MAZE_SIZE * MAZE_SIZE * enemyDensity);
+  const maxEnemyCap = Math.floor(MAZE_SIZE * MAZE_SIZE * ENEMY_DENSITY_MAX) - 1;
+  const enemyCount = Math.min(maxEnemyCap, Math.floor(MAZE_SIZE * MAZE_SIZE * enemyDensity));
   for (let i = 0; i < enemyCount; i += 1) {
     const room = takeRoom();
     if (!room) break;
@@ -226,10 +229,81 @@ export function generateMaze(seed) {
     entities[roomKey(room.x, room.y)] = { kind: "pickup", itemType };
   }
 
+  // 远近出口差异化：距中心最短路径最近的出口设为「守卫出口」（常驻方向提示，安全区外缘第 5 格由 guardian 镇守），
+  // 其余较远出口设为「隐秘出口」（无守卫，但缩略图需凭借出口线索或已探索才显形）。
+  const guardianRng = mulberry32(seed ^ 0x2468ace1);
+  let nearestExitIndex = 0;
+  let nearestPathLength = Infinity;
+  exits.forEach((exit, idx) => {
+    const path = exitApproachPaths.get(roomKey(exit.x, exit.y)) || [];
+    if (path.length > 0 && path.length < nearestPathLength) {
+      nearestPathLength = path.length;
+      nearestExitIndex = idx;
+    }
+  });
+  exits.forEach((exit, idx) => {
+    exit.guarded = idx === nearestExitIndex;
+  });
+  const guardedExit = exits[nearestExitIndex];
+  if (guardedExit) {
+    const path = exitApproachPaths.get(roomKey(guardedExit.x, guardedExit.y)) || [];
+    for (let i = path.length - EXIT_SAFE_PATH_ROOMS - 1; i >= 3; i -= 1) {
+      const candidate = path[i];
+      const candidateKey = roomKey(candidate.x, candidate.y);
+      const distCenter = Math.abs(candidate.x - center) + Math.abs(candidate.y - center);
+      const safeFromExits = exits.every((ex) => Math.abs(candidate.x - ex.x) + Math.abs(candidate.y - ex.y) > EXIT_SAFE_RADIUS);
+      if (distCenter > 2 && safeFromExits && !exitSafeRooms.has(candidateKey)) {
+        entities[candidateKey] = createEnemy("guardian", guardianRng);
+        break;
+      }
+    }
+  }
+
+  // 中场锚点：在距中心 28–62 格的环形区域内投放 3 块「回响碎片」，绑定于农具/遗骸/宝箱事件中。
+  const shardRng = mulberry32(seed ^ 0x9e3779b9);
+  const primaryShardPool = [];
+  const fallbackShardPool = [];
+  for (let y = 0; y < MAZE_SIZE; y += 1) {
+    for (let x = 0; x < MAZE_SIZE; x += 1) {
+      const dist = Math.abs(x - center) + Math.abs(y - center);
+      if (dist < ECHO_SHARD_MIN_DIST || dist > ECHO_SHARD_MAX_DIST) continue;
+      const key = roomKey(x, y);
+      if (exitSafeRooms.has(key)) continue;
+      const ent = entities[key];
+      if (ent && ent.kind === "event" && (ent.type === "cache" || ent.type === "corpse" || ent.type === "chest")) {
+        primaryShardPool.push({ x, y, key });
+      } else if (!ent) {
+        fallbackShardPool.push({ x, y, key });
+      }
+    }
+  }
+  const shardCandidates = [
+    ...shuffled(primaryShardPool, shardRng),
+    ...shuffled(fallbackShardPool, shardRng)
+  ];
+  const shards = [];
+  for (const minSeparation of [28, 16, 0]) {
+    for (const candidate of shardCandidates) {
+      if (shards.length >= ECHO_SHARD_COUNT) break;
+      if (shards.some((item) => item.x === candidate.x && item.y === candidate.y)) continue;
+      const separated = shards.every((item) => Math.abs(item.x - candidate.x) + Math.abs(item.y - candidate.y) >= minSeparation);
+      if (!separated) continue;
+      const shardId = shards.length + 1;
+      if (!entities[candidate.key]) {
+        entities[candidate.key] = { kind: "event", type: "cache", shardId };
+      } else {
+        entities[candidate.key].shardId = shardId;
+      }
+      shards.push({ id: shardId, x: candidate.x, y: candidate.y });
+    }
+    if (shards.length >= ECHO_SHARD_COUNT) break;
+  }
+
   return {
     seed,
     bits,
     exits,
+    shards,
     entities,
     roomCount: MAZE_SIZE * MAZE_SIZE,
     loopCount: loopTarget

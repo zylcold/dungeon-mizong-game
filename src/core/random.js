@@ -22,10 +22,39 @@ export function hashString(input) {
 }
 
 export function randomSeed() {
-  if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.getRandomValues === "function") {
     return window.crypto.getRandomValues(new Uint32Array(1))[0];
   }
   return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+}
+
+export function parseSeedInput(raw) {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return (raw >>> 0) || 1;
+  }
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^[0-9]+$/u.test(trimmed)) {
+    const num = Number(trimmed);
+    if (Number.isFinite(num) && num > 0) return (num >>> 0) || 1;
+  }
+  if (/^[0-9a-fA-F]{1,8}$/u.test(trimmed)) {
+    const hex = parseInt(trimmed, 16);
+    if (Number.isFinite(hex) && hex > 0) return (hex >>> 0) || 1;
+  }
+  return hashString(trimmed) || 1;
+}
+
+export function dailySeed(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return hashString(`daily-${year}-${month}-${day}`) || 1;
+}
+
+export function formatSeedCode(seed) {
+  return (((seed >>> 0) || 1).toString(16)).toUpperCase().padStart(8, "0");
 }
 
 export function shuffled(items, rng) {

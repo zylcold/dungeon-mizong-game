@@ -1,9 +1,10 @@
 /** 房间事件与遭遇生命周期。 */
-import { DIRECTION_LIST } from "../config.js";
+import { DIRECTION_LIST, POISON_HEAL_PENALTY, SHRINE_COSTS, SHRINE_MAX_HP_GAINS, VISION_DURATION } from "../config.js";
 import { inBounds, indexFor, roomKey } from "../core/coordinates.js";
+import { clamp } from "../core/math.js";
 import { connectRooms, createEnemy } from "../core/maze.js";
 import { hashString, mulberry32 } from "../core/random.js";
-import { ENEMY_DEFS, EVENT_DEFS, ITEM_DEFS } from "../data/catalog.js";
+import { ECHO_SHARD_DEFS, ENEMY_DEFS, EVENT_DEFS, ITEM_DEFS } from "../data/catalog.js";
 import { EVENT_COPY } from "../data/copy.js";
 
 export class EventSystem {
@@ -11,6 +12,24 @@ export class EventSystem {
     this.game = game;
     this.dom = game.dom;
     this.pendingLoreKey = null;
+  }
+
+  collectRoomShard(entity) {
+    const shardId = entity && entity.shardId;
+    if (!shardId) return false;
+    this.game.state.shards = Array.isArray(this.game.state.shards) ? this.game.state.shards : [];
+    if (this.game.state.shards.includes(shardId)) return false;
+    this.game.state.shards.push(shardId);
+    const shard = ECHO_SHARD_DEFS[shardId] || { name: `回响碎片 ${shardId}`, hint: "" };
+    this.game.ui.addLog(
+      "vision",
+      "✦",
+      `拾获回响碎片「${shard.name}」（${this.game.state.shards.length}/3）${shard.hint ? `——${shard.hint}` : ""}`
+    );
+    if (this.game.state.shards.length === 3) {
+      this.game.ui.addLog("system", "✦", "三块回响碎片已集齐，迷宫深处的真实记忆彻底苏醒");
+    }
+    return true;
   }
 
   attemptPendingLore() {
@@ -45,6 +64,9 @@ export class EventSystem {
     this.pendingLoreKey = `event:${entity.type}`;
     const definition = EVENT_DEFS[entity.type];
     const eventDescription = this.game.story.pickCopy(EVENT_COPY[entity.type], key, `event-copy-${entity.type}`);
+    const shardNote = entity.shardId && ECHO_SHARD_DEFS[entity.shardId]
+      ? `（隐约可见「${ECHO_SHARD_DEFS[entity.shardId].name}」的微光）`
+      : "";
     if (!entity.seen) {
       entity.seen = true;
       this.game.state.stats.events += 1;
@@ -55,7 +77,7 @@ export class EventSystem {
           kicker: "随机事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "打开宝箱不会消耗额外步数。",
           actions: [
             { label: "打开宝箱", onClick: () => this.openChest(key) },
@@ -65,13 +87,17 @@ export class EventSystem {
           key
         });
         break;
-      case "fountain":
+      case "fountain": {
+        const poisoned = this.game.state.poisonTurns > 0;
+        const maxHeal = poisoned ? Math.max(0, 25 - POISON_HEAL_PENALTY) : 25;
         this.game.ui.showEncounter({
           kicker: "随机事件",
           title: definition.name,
           icon: definition.asset,
           description: eventDescription,
-          outcome: `饮用后恢复 25 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`,
+          outcome: poisoned
+            ? `饮用后净化全部毒素并恢复 ${maxHeal} 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`
+            : `饮用后恢复 25 点生命，当前为 ${this.game.state.hp} / ${this.game.state.maxHp}。`,
           actions: [
             { label: "饮用泉水", onClick: () => this.useFountain(key) },
             { label: "离开", onClick: () => this.leaveEvent(key) }
@@ -80,42 +106,55 @@ export class EventSystem {
           key
         });
         break;
+      }
       case "trap": {
         const damage = 8 + Math.floor(this.eventRoll(key, "trap") * 8);
         this.game.state.hp = Math.max(1, this.game.state.hp - damage);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
-        this.game.ui.addLog("damage", definition.icon, `触发地刺陷阱，损失 ${damage} 点生命`);
+        this.game.ui.addLog("damage", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}触发地刺陷阱，损失 ${damage} 点生命`);
         this.game.ui.showToast(`地刺陷阱：-${damage} HP`);
         break;
       }
       case "map":
         this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 30);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
-        this.game.ui.addLog("vision", definition.icon, "读懂地图残片，出口箭头强化 30 步");
+        this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}读懂地图残片，出口箭头强化 30 步`);
         this.game.ui.showToast("出口箭头已强化");
         break;
-      case "shrine":
+      case "shrine": {
+        const stageIndex = Math.min(SHRINE_COSTS.length - 1, entity.sacrifices || 0);
+        const cost = SHRINE_COSTS[stageIndex];
+        const maxHpGain = SHRINE_MAX_HP_GAINS[stageIndex];
+        const stageLabel = ["一阶契约", "二阶契约", "终阶契约"][stageIndex];
+        const extraText = stageIndex === 1
+          ? "，并获得 15 步视野拓宽"
+          : (stageIndex === 2 ? "，并获赠「一击必杀」" : "");
         this.game.ui.showEncounter({
           kicker: "选择事件",
-          title: definition.name,
+          title: `${definition.name} · ${stageLabel}`,
           icon: definition.asset,
-          description: eventDescription,
-          outcome: this.game.state.hp > 12 ? "消耗 12 点生命，生命上限永久增加 15。" : "当前生命不足，无法献祭。",
+          description: `${eventDescription}${shardNote}`,
+          outcome: this.game.state.hp > cost
+            ? `消耗 ${cost} 点当前生命（不回复当前生命），生命上限永久增加 ${maxHpGain}${extraText}。`
+            : `当前生命不足（需高于 ${cost} HP），无法献祭。`,
           actions: [
-            { label: "献祭生命", disabled: this.game.state.hp <= 12, onClick: () => this.useShrine(key) },
+            { label: "献祭生命", disabled: this.game.state.hp <= cost, onClick: () => this.useShrine(key) },
             { label: "拒绝", onClick: () => this.leaveEvent(key) }
           ],
           closable: true,
           key
         });
         break;
+      }
       case "corpse":
         this.game.fear.onCorpseEncountered();
         this.game.ui.showEncounter({
           kicker: "风险事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "约三分之二概率获得道具，其余情况会遭遇伏击。",
           actions: [
             { label: "搜索背包", onClick: () => this.searchCorpse(key) },
@@ -127,9 +166,10 @@ export class EventSystem {
         break;
       case "fog":
         this.game.state.fogTurns = Math.max(this.game.state.fogTurns, 15);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.vision.updateVisibility();
-        this.game.ui.addLog("vision", definition.icon, "浓雾笼罩四周，视野降为 1 格，持续 15 步");
+        this.game.ui.addLog("vision", definition.icon, `${eventDescription ? `${eventDescription} ` : ""}浓雾笼罩四周，视野降为 1 格，持续 15 步`);
         this.game.ui.showToast("视野降为 1 格");
         break;
       case "portal":
@@ -167,7 +207,7 @@ export class EventSystem {
           kicker: "地形事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "强行穿过可能受伤，也可能在树根下发现被遮住的补给。",
           actions: [
             { label: "踩稳穿过", onClick: () => this.crossRoots(key) },
@@ -178,13 +218,14 @@ export class EventSystem {
         });
         break;
       case "echo": {
-        const echoes = [
+        const echoes = EVENT_COPY.echo || [
           "回声里有人喊着你的名字，声音来自迷宫边缘。",
           "乌鸦叫声与村人的呼喊重叠了一瞬。",
           "风穿过高处岩缝，替你指出了一个大致方向。"
         ];
         const message = this.game.story.pickCopy(echoes, key, "echo-result");
         this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 16);
+        this.collectRoomShard(entity);
         delete this.game.state.maze.entities[key];
         this.game.ui.addLog("vision", definition.icon, `${definition.name}：${message}`);
         this.game.ui.showToast("回声带来了出口线索");
@@ -195,7 +236,7 @@ export class EventSystem {
           kicker: "记忆事件",
           title: definition.name,
           icon: definition.asset,
-          description: eventDescription,
+          description: `${eventDescription}${shardNote}`,
           outcome: "翻找不会消耗额外步数，但不一定能找到可用物品。",
           actions: [
             { label: "翻找布袋", onClick: () => this.searchFarmCache(key) },
@@ -221,6 +262,8 @@ export class EventSystem {
   }
 
   openChest(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "chest");
     delete this.game.state.maze.entities[key];
     this.game.state.stats.chests += 1;
@@ -243,6 +286,8 @@ export class EventSystem {
   }
 
   crossRoots(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "roots-result");
     delete this.game.state.maze.entities[key];
     if (roll < 0.48) {
@@ -265,6 +310,8 @@ export class EventSystem {
   }
 
   searchFarmCache(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "farm-cache-result");
     delete this.game.state.maze.entities[key];
     if (roll < 0.56) {
@@ -286,26 +333,68 @@ export class EventSystem {
   }
 
   useFountain(key) {
-    const healed = Math.min(25, this.game.state.maxHp - this.game.state.hp);
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
+    const wasPoisoned = this.game.state.poisonTurns > 0;
+    const maxHeal = wasPoisoned ? Math.max(0, 25 - POISON_HEAL_PENALTY) : 25;
+    const healed = Math.min(maxHeal, this.game.state.maxHp - this.game.state.hp);
     this.game.state.hp += healed;
+    if (wasPoisoned) this.game.state.poisonTurns = 0;
     delete this.game.state.maze.entities[key];
-    this.game.ui.addLog("heal", "✚", healed > 0 ? `饮用生命泉，恢复 ${healed} 点生命` : "生命泉让你精神一振，但生命已满");
-    this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP` : "生命值已满");
+    if (wasPoisoned) {
+      this.game.ui.addLog("heal", "✚", `饮用生命泉净化毒素，恢复 ${healed} 点生命`);
+      this.game.ui.showToast(`净化毒素 · 恢复 ${healed} HP`);
+    } else {
+      this.game.ui.addLog("heal", "✚", healed > 0 ? `饮用生命泉，恢复 ${healed} 点生命` : "生命泉让你精神一振，但生命已满");
+      this.game.ui.showToast(healed > 0 ? `恢复 ${healed} HP` : "生命值已满");
+    }
     this.finishEncounter();
   }
 
   useShrine(key) {
-    if (this.game.state.hp <= 12) return;
-    this.game.state.hp -= 12;
-    this.game.state.maxHp += 15;
-    this.game.state.hp += 15;
-    delete this.game.state.maze.entities[key];
-    this.game.ui.addLog("system", "◇", "完成献祭，生命上限增加 15");
-    this.game.ui.showToast("生命上限 +15");
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
+    const stageIndex = Math.min(SHRINE_COSTS.length - 1, (entity && entity.sacrifices) || 0);
+    const cost = SHRINE_COSTS[stageIndex];
+    const maxHpGain = SHRINE_MAX_HP_GAINS[stageIndex];
+    if (this.game.state.hp <= cost) return;
+    this.game.state.hp -= cost;
+    this.game.state.maxHp += maxHpGain;
+    const nextStage = stageIndex + 1;
+    if (entity) entity.sacrifices = nextStage;
+    this.game.state.shrineSacrifices = (this.game.state.shrineSacrifices || 0) + 1;
+    if (nextStage === 2) {
+      this.game.state.visionTurns = clamp(this.game.state.visionTurns + 15, 15, VISION_DURATION * 2);
+      this.game.state.fogTurns = 0;
+      this.game.ui.addLog("system", "◇", `完成二阶献祭，消耗 ${cost} HP，生命上限 +${maxHpGain}，视野拓宽 15 步`);
+    } else if (nextStage >= 3) {
+      this.game.inventory.addItem("execute", 1, true);
+      this.game.state.stats.items += 1;
+      delete this.game.state.maze.entities[key];
+      this.game.ui.addLog("system", "◇", `完成终阶献祭，消耗 ${cost} HP，生命上限 +${maxHpGain}，获得「一击必杀」`);
+    } else {
+      this.game.ui.addLog("system", "◇", `完成献祭，消耗 ${cost} HP，生命上限增加 ${maxHpGain}`);
+    }
+    if (this.game.state.maze && this.game.state.maze.entities[key]) {
+      this.game.state.dismissedKey = key;
+    }
+    if (this.game.state.shrineSacrifices === 2) {
+      this.game.ui.addLog("vision", "◇", "石龛上的香灰无风自动，你似乎认出了底座下压着的那枚铜钱");
+    } else if (this.game.state.shrineSacrifices === 3) {
+      this.pendingLoreKey = null;
+      this.game.state.exitHintTurns = Math.max(this.game.state.exitHintTurns, 45);
+      this.game.ui.addLog("vision", "◇", "记起土地龛下的旧愿，出口指引强化 45 步");
+    }
+    this.game.ui.showToast(`生命上限 +${maxHpGain}`);
     this.finishEncounter();
+    if (this.game.state.shrineSacrifices === 3) {
+      this.game.story.tryPlayShrineSidequest();
+    }
   }
 
   searchCorpse(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const roll = this.eventRoll(key, "corpse");
     if (roll < 0.66) {
       const itemType = this.game.inventory.randomItemFor(key, "corpse-item");
@@ -328,12 +417,16 @@ export class EventSystem {
   }
 
   usePortal(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     delete this.game.state.maze.entities[key];
     this.finishEncounter(false);
     this.game.inventory.teleportPlayer("传送法阵");
   }
 
   openStoneDoor(key) {
+    const entity = this.game.state.maze.entities[key];
+    this.collectRoomShard(entity);
     const { x, y } = this.game.state.player;
     const mask = this.game.state.maze.bits[indexFor(x, y)];
     const candidates = DIRECTION_LIST.filter(([, direction]) => {
